@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>나의사주 | 질문부터 시작하는 개인 맞춤 사주 리포트</title>
+<style>
+:root{--bg:#fffdf8;--card:#fff;--text:#24231f;--muted:#746f62;--line:#eee6c8;--yellow:#f4c84f;--yellow2:#fff1ae;--yellow3:#fff8dc;--deep:#8e6b00;--shadow:0 14px 38px rgba(91,75,20,.08)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:linear-gradient(180deg,#fffefb,#fffaf0);color:var(--text)}button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
+.top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.92);backdrop-filter:blur(14px);border-bottom:1px solid #f2ead0}.topin{max-width:1120px;margin:auto;height:68px;display:flex;align-items:center;gap:22px;padding:0 20px}.brand{font-weight:950;letter-spacing:-.04em;font-size:20px}.brand b{color:#a57b00}.nav{display:flex;gap:18px;color:#5f5a4d;font-size:14px;font-weight:800;margin-left:24px}.spacer{flex:1}.mybtn{border:1px solid var(--line);background:#fff;border-radius:999px;padding:10px 14px;font-weight:900}
+main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid-template-columns:1.02fr .98fr;gap:22px;align-items:stretch}.heroCopy{border:1px solid var(--line);background:linear-gradient(145deg,#fff,#fff8dc);border-radius:32px;padding:40px;position:relative;overflow:hidden;box-shadow:var(--shadow)}.heroCopy:after{content:'';position:absolute;width:260px;height:260px;border-radius:50%;right:-90px;top:-90px;background:radial-gradient(circle,rgba(244,200,79,.28),transparent 67%)}.eyebrow{display:inline-block;background:var(--yellow2);color:#775800;border-radius:999px;padding:7px 11px;font-size:11px;font-weight:950;letter-spacing:.07em}h1{font-size:44px;line-height:1.13;letter-spacing:-.055em;margin:18px 0 14px}h1 em{font-style:normal;color:#a47900}.lead{color:var(--muted);line-height:1.7;font-size:16px;font-weight:650;max-width:570px}.points{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}.point{background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 11px;font-size:12px;font-weight:850;color:#6c6246}
+.formCard{background:#fff;border:1px solid var(--line);border-radius:32px;padding:26px;box-shadow:var(--shadow)}.formTitle{font-size:20px;font-weight:950;letter-spacing:-.03em}.formSub{font-size:12.5px;color:var(--muted);margin:7px 0 18px;line-height:1.55}label{display:block;font-size:12px;font-weight:900;margin:12px 0 7px;color:#4c473b}.row{display:flex;gap:8px}input,select,textarea{width:100%;border:1.4px solid var(--line);border-radius:14px;background:#fffef9;padding:12px 13px;outline:none;font-weight:700;color:#2b2923}input:focus,select:focus,textarea:focus{border-color:#dfb52a;box-shadow:0 0 0 4px rgba(244,200,79,.17)}textarea{resize:vertical;min-height:82px;line-height:1.5}.smallGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.check{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;margin-top:10px;color:#5d5749}.check input{width:auto;accent-color:#d9a900}.primary{width:100%;border:0;border-radius:15px;padding:14px 16px;margin-top:16px;background:linear-gradient(#f6d363,#e8bb2e);color:#3d3000;font-weight:950;box-shadow:0 10px 20px rgba(210,167,34,.22)}.err{font-size:12px;color:#b74217;font-weight:850;margin-top:9px}
+#preview{display:none;margin-top:24px}.answerWrap{background:#22211d;color:white;border-radius:30px;padding:28px;position:relative;overflow:hidden}.answerWrap:before{content:'';position:absolute;right:-40px;bottom:-70px;width:220px;height:220px;background:radial-gradient(circle,rgba(244,200,79,.25),transparent 68%)}.answerTag{font-size:11px;font-weight:900;color:#f8d765;letter-spacing:.08em}.questionShown{font-size:13px;color:#cbc7ba;margin-top:8px}.oneAnswer{font-size:25px;font-weight:950;line-height:1.45;letter-spacing:-.035em;margin:16px 0 6px;max-width:840px}.demoNote{font-size:11px;color:#989489;margin-top:12px}.unlock{margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:20px;display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center}.unlock h3{margin:0 0 8px;font-size:18px}.locks{display:flex;gap:7px;flex-wrap:wrap}.lock{font-size:11px;background:#fff8dc;border:1px solid #eee0a4;border-radius:999px;padding:7px 9px;font-weight:850;color:#695f3f}.priceBtn{border:0;background:#f1c94f;border-radius:14px;padding:13px 16px;font-weight:950;min-width:190px}
+.section{margin-top:58px}.sectionHead{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:18px}.sectionHead h2{font-size:28px;letter-spacing:-.04em;margin:0}.sectionHead p{font-size:13px;color:var(--muted);margin:0}.products{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.product{background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;min-height:196px;display:flex;flex-direction:column;transition:.16s}.product:hover{transform:translateY(-2px);box-shadow:var(--shadow)}.picon{width:42px;height:42px;border-radius:13px;background:#fff3bd;display:grid;place-items:center;font-size:20px}.product h3{margin:14px 0 6px;font-size:16px}.product p{font-size:12px;color:var(--muted);line-height:1.55;margin:0}.product .meta{margin-top:auto;padding-top:14px;display:flex;justify-content:space-between;font-size:12px;font-weight:900}.active{color:#2f2b1f}
+.dash{display:grid;grid-template-columns:1fr 1.25fr;gap:14px}.panel{background:#fff;border:1px solid var(--line);border-radius:24px;padding:20px}.panel h3{margin:0 0 5px;font-size:18px}.panel .desc{font-size:12px;color:var(--muted);margin-bottom:14px}.people{display:flex;flex-direction:column;gap:8px}.person{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #f1ead3;border-radius:15px;background:#fffef9}.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#fff0ae;font-weight:950}.person b{font-size:13px}.person small{display:block;color:var(--muted);margin-top:2px}.ghost{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 9px;font-size:11px;font-weight:850}.add{margin-top:10px;border:1px dashed #ddca7e;background:#fffaf0;border-radius:14px;padding:11px;width:100%;font-weight:900;color:#755c09}.reportList{display:flex;flex-direction:column;gap:9px}.report{border:1px solid #f1ead3;border-radius:15px;padding:13px;display:flex;align-items:center;gap:10px}.rmark{width:40px;height:40px;border-radius:12px;background:#222;color:#f6d35f;display:grid;place-items:center;font-weight:950}.report b{font-size:13px}.report small{display:block;color:var(--muted);margin-top:3px}.status{margin-left:auto;font-size:11px;background:#fff3bd;border-radius:999px;padding:6px 8px;font-weight:900;color:#775b00}
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.step{background:#fff;border:1px solid var(--line);border-radius:18px;padding:15px}.num{font-size:10px;color:#9b7700;font-weight:950}.step b{display:block;font-size:13px;margin:7px 0 4px}.step span{font-size:11px;color:var(--muted);line-height:1.5}footer{border-top:1px solid #f0e8ce;padding:30px 20px;color:#777164;font-size:11px;text-align:center;background:#fffdf8}
+.commerceInfo{margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px}
+.commerceInfo h3{margin:0 0 10px;font-size:16px;letter-spacing:-.025em}
+.commerceGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.commerceBox{border:1px solid #f0e8ce;background:#fffef9;border-radius:14px;padding:11px}
+.commerceBox small{display:block;font-size:10px;color:var(--muted);margin-bottom:4px}.commerceBox b{font-size:11.5px;line-height:1.5}
+.legalLinks{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-bottom:11px;font-weight:900;color:#5c5547}
+.legalLinks a{text-decoration:underline;text-underline-offset:3px}
+.bizFooter{line-height:1.8;max-width:980px;margin:0 auto;color:#827b6e}
+.bizFooter b{color:#595348}
+@media(max-width:800px){.commerceGrid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.commerceGrid{grid-template-columns:1fr}}.mobileNav{display:none}.modalBack{position:fixed;inset:0;background:rgba(28,27,24,.38);z-index:60;display:none;align-items:center;justify-content:center;padding:18px}.modal{width:min(500px,100%);background:#fff;border-radius:26px;padding:22px;border:1px solid var(--line);box-shadow:0 28px 80px rgba(0,0,0,.16)}.modal h3{margin:0 0 8px}.modal p{color:var(--muted);font-size:13px;line-height:1.6}.modalBtns{display:flex;gap:8px;margin-top:18px}.modalBtns button{flex:1;border-radius:13px;padding:12px;font-weight:900}
+.familyModalBack{position:fixed;inset:0;z-index:90;background:rgba(30,28,22,.48);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;padding:18px}.familyModal{width:min(620px,100%);max-height:92vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:26px;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.22)}.familyModalHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}.familyModalHead h3{margin:0;font-size:22px;letter-spacing:-.04em}.familyModalHead p{margin:6px 0 0;color:var(--muted);font-size:12px}.familyClose{border:1px solid var(--line);background:#fff;border-radius:12px;width:38px;height:38px;font-weight:950}.familyGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.familyField label{display:block;font-size:11px;font-weight:900;margin:0 0 6px}.familyField.full{grid-column:1/-1}.familyCheck{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:850;margin-top:8px}.familyCheck input{width:auto}.familyActions{display:flex;gap:8px;margin-top:18px}.familyActions button{flex:1;border-radius:13px;padding:12px;font-weight:950}.familySave{border:0;background:#f1c94f}.familyDelete{border:1px solid #f0d0c8;background:#fff;color:#a43e2b}.familyCancel{border:1px solid var(--line);background:#fff}.person{cursor:default}.person .ghost{cursor:pointer}.personEmpty{border:1px dashed #ddca7e;border-radius:15px;padding:14px;background:#fffaf0;color:#7a6b3a;font-size:12px;line-height:1.6}.familyLoading{font-size:12px;color:var(--muted);padding:8px 0}
+.profileQuick{margin:0 0 16px;padding:13px;border:1px solid #eee3b8;background:linear-gradient(180deg,#fffdf4,#fffaf0);border-radius:17px}
+.profileQuickTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.profileQuickTop b{font-size:12px;letter-spacing:-.02em}
+.profileQuickTop span{font-size:10.5px;color:var(--muted)}
+.profileQuickRow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:7px}
+.profileQuickRow select{min-width:0}
+.profileQuickBtn{border:1px solid #e4d599;background:#fff;border-radius:12px;padding:10px 11px;font-size:11px;font-weight:950;white-space:nowrap}
+.profileQuickBtn.save{border:0;background:#f1c94f;color:#453500}
+.profileQuickNotice{display:none;margin-top:8px;font-size:10.5px;color:#7b6b37;line-height:1.5}
+.personActions{margin-left:auto;display:flex;gap:6px}
+.personActions .ghost{margin-left:0}
+@media(max-width:620px){
+  .profileQuickRow{grid-template-columns:1fr 1fr}
+  .profileQuickRow select{grid-column:1/-1}
+  .profileQuickBtn{width:100%}
+  .person{align-items:flex-start}
+  .personActions{flex-direction:column}
+}
+@media(max-width:620px){.familyGrid{grid-template-columns:1fr}.familyField.full{grid-column:auto}.familyActions{flex-direction:column}}
+.close{background:#fff;border:1px solid var(--line)}.go{border:0;background:#f1c94f}
+
+.reportPreview{display:none;margin-top:34px}
+.reportHero{background:linear-gradient(145deg,#24231f,#333128);color:#fff;border-radius:30px;padding:30px;position:relative;overflow:hidden;box-shadow:0 20px 48px rgba(35,32,22,.16)}
+.reportHero:after{content:'';position:absolute;width:240px;height:240px;border-radius:50%;right:-80px;top:-90px;background:radial-gradient(circle,rgba(244,200,79,.32),transparent 68%)}
+.reportKicker{font-size:11px;color:#f8d765;font-weight:950;letter-spacing:.08em}.reportHero h2{font-size:32px;line-height:1.25;letter-spacing:-.045em;margin:10px 0 8px;max-width:760px}.reportHero p{font-size:13px;line-height:1.7;color:#d3cfc4;max-width:760px;margin:0}.reportSummary{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:20px}.sumBox{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.09);border-radius:15px;padding:12px}.sumBox small{display:block;color:#bab5a7;font-size:10px;margin-bottom:5px}.sumBox b{font-size:13px;color:#fff}
+.reportToolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:16px 0 12px}.reportToolbar .note{font-size:11px;color:var(--muted);line-height:1.55}.reportToolbar button{border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 11px;font-size:11px;font-weight:900}
+.reportToc{background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;margin-bottom:12px}.reportToc h3{margin:0 0 12px;font-size:16px}.tocGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.tocItem{font-size:11px;padding:9px 10px;background:#fffaf0;border:1px solid #f0e4b7;border-radius:10px;font-weight:850;color:#655b3e}
+.reportParts{display:flex;flex-direction:column;gap:16px}.reportPart{background:#fff;border:1px solid var(--line);border-radius:26px;padding:20px;box-shadow:0 8px 24px rgba(91,75,20,.04)}.partHead{display:flex;gap:10px;align-items:center;margin-bottom:12px}.partNo{width:34px;height:34px;border-radius:11px;background:#fff0ae;display:grid;place-items:center;font-size:11px;font-weight:950;color:#745700}.partHead h3{margin:0;font-size:19px;letter-spacing:-.025em}.reportItems{display:grid;grid-template-columns:1fr 1fr;gap:9px}.reportItem{border:1px solid #f1ead3;background:#fffef9;border-radius:15px;padding:14px}.reportItem .idx{font-size:10px;color:#9b7700;font-weight:950}.reportItem h4{font-size:13px;margin:5px 0 7px}.reportItem p{font-size:12px;color:#5f5a4d;line-height:1.68;margin:0}.reportItem .why{font-size:10.5px;color:#928a75;margin-top:8px;padding-top:8px;border-top:1px dashed #eee4c5}.reportEnd{margin-top:14px;background:#fff8dc;border:1px solid #eedc95;border-radius:20px;padding:18px}.reportEnd b{display:block;font-size:15px;margin-bottom:6px}.reportEnd p{font-size:12px;line-height:1.65;color:#645b41;margin:0}
+@media(max-width:760px){.reportSummary{grid-template-columns:1fr 1fr}.tocGrid{grid-template-columns:1fr 1fr}.reportItems{grid-template-columns:1fr}.reportHero h2{font-size:26px}}
+
+@media(max-width:900px){.hero{grid-template-columns:1fr}.products{grid-template-columns:repeat(2,1fr)}.dash{grid-template-columns:1fr}.flow{grid-template-columns:1fr 1fr}.nav{display:none}h1{font-size:36px}}
+@media(max-width:560px){main{padding:18px 14px 92px}.topin{height:60px;padding:0 14px}.mybtn{display:none}.heroCopy{padding:26px 21px;border-radius:25px}h1{font-size:32px}.formCard{padding:18px;border-radius:24px}.products{grid-template-columns:1fr 1fr;gap:9px}.product{padding:14px;min-height:183px}.section{margin-top:44px}.sectionHead h2{font-size:23px}.sectionHead p{display:none}.unlock{grid-template-columns:1fr}.priceBtn{width:100%}.oneAnswer{font-size:21px}.flow{grid-template-columns:1fr}.mobileNav{position:fixed;display:grid;grid-template-columns:repeat(4,1fr);bottom:0;left:0;right:0;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-top:1px solid #eee7d0;z-index:40;padding:8px 6px 9px}.mobileNav a{font-size:10px;text-align:center;font-weight:850;color:#5e594c}.mobileNav span{display:block;font-size:18px;margin-bottom:2px}}
+
+.pdfBtn{border:0!important;background:linear-gradient(#f6d363,#e8bb2e)!important;color:#3d3000!important;border-radius:12px!important;padding:10px 13px!important;font-size:11px!important;font-weight:950!important;box-shadow:0 8px 18px rgba(210,167,34,.18)}
+@media print{
+  body{background:#fff!important}
+  .top,.hero,.section:not(#fullReport),footer,.mobileNav,.modalBack,.reportToolbar{display:none!important}
+  main{max-width:none!important;padding:0!important;margin:0!important}
+  #fullReport{display:block!important;margin:0!important}
+  .reportPreview{display:block!important}
+  .reportHero{border-radius:0!important;box-shadow:none!important;break-after:page}
+  .reportToc,.reportPart{box-shadow:none!important;break-inside:avoid-page}
+  .reportItem{break-inside:avoid-page}
+  .reportParts{gap:10px!important}
+  @page{size:A4;margin:12mm}
+}
+
+/* ===== SALE READY POLISH ===== */
+.heroCopy{min-height:610px;display:flex;flex-direction:column;justify-content:center}
+.heroCopy:before{content:'命';position:absolute;right:40px;bottom:18px;font-family:serif;font-size:170px;font-weight:900;color:rgba(149,110,0,.045);transform:rotate(-7deg);pointer-events:none}
+.brand{font-size:22px}.brand:after{content:' · PERSONAL REPORT';font-size:9px;letter-spacing:.12em;color:#a7904f;margin-left:8px;vertical-align:middle}
+.trustRow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
+.trustCard{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px}
+.trustCard b{font-size:13px;display:block;margin-bottom:5px}.trustCard span{font-size:11px;line-height:1.55;color:var(--muted)}
+.storySection{margin-top:58px;display:grid;grid-template-columns:.9fr 1.1fr;gap:18px}
+.storyDark{border-radius:30px;background:#24231f;color:#fff;padding:30px;position:relative;overflow:hidden}
+.storyDark:after{content:'';position:absolute;width:260px;height:260px;border-radius:50%;right:-80px;bottom:-100px;background:radial-gradient(circle,rgba(244,200,79,.28),transparent 68%)}
+.storyDark .eyebrow{background:rgba(244,200,79,.16);color:#f5d263}.storyDark h2{font-size:30px;letter-spacing:-.045em;margin:14px 0 12px}.storyDark p{color:#d7d2c8;line-height:1.75;font-size:13px}
+.reportMap{background:#fff;border:1px solid var(--line);border-radius:30px;padding:24px}
+.mapGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.mapItem{border:1px solid #efe5bd;background:#fffdf7;border-radius:14px;padding:12px}
+.mapItem b{display:block;font-size:12px;margin-bottom:4px}.mapItem span{font-size:10.5px;color:var(--muted);line-height:1.45}
+.badgeGold{display:inline-block;background:#24231f;color:#f6d45f;border-radius:999px;padding:6px 9px;font-size:10px;font-weight:950}
+.checkoutNote{font-size:10px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.5}
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);z-index:100;background:#24231f;color:#fff;padding:12px 16px;border-radius:14px;font-size:12px;font-weight:800;opacity:0;pointer-events:none;transition:.2s;box-shadow:0 14px 40px rgba(0,0,0,.18)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+.previewIntro{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:22px}
+.previewIntro b{display:block;font-size:15px;color:#fff;margin-bottom:4px}
+.previewIntro span{display:block;font-size:11px;line-height:1.55;color:#cfc9bc;max-width:520px}
+.previewBadgeLarge{flex:0 0 auto;background:rgba(246,212,95,.12);border:1px solid rgba(246,212,95,.25);color:#f6d45f;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:950;letter-spacing:.06em}
+.previewRail{display:grid;grid-template-columns:repeat(5,minmax(132px,1fr));gap:10px;margin-top:14px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin}
+.previewRail::-webkit-scrollbar{height:8px}.previewRail::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:99px}
+.previewPaper{min-width:132px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:7px;box-shadow:0 12px 28px rgba(0,0,0,.18)}
+.previewPaper:nth-child(2){transform:translateY(16px)}.previewPaper:nth-child(3){transform:translateY(6px)}.previewPaper:nth-child(4){transform:translateY(16px)}.previewPaper:nth-child(5){transform:translateY(8px)}
+.previewPaper img{display:block;width:100%;height:auto;border-radius:14px;background:#fff}
+.previewPaper strong{display:block;font-size:11px;color:#fff;margin-top:9px;line-height:1.35}.previewPaper small{display:block;font-size:10px;color:#c9c3b7;margin-top:4px;line-height:1.45}
+.previewHint{margin-top:10px;font-size:10.5px;line-height:1.6;color:#b7b19f}
+.previewActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.previewBtn{border:1px solid rgba(246,212,95,.26);background:#fff1ae;color:#5a4300;border-radius:999px;padding:10px 14px;font-size:12px;font-weight:950;cursor:pointer}.previewBtn.secondary{background:transparent;color:#fff;border-color:rgba(255,255,255,.18)}.previewPaper{cursor:pointer}.previewPaper:focus{outline:2px solid #f6d45f;outline-offset:2px}.previewPaper strong:after{content:'  크게 보기';font-size:10px;color:#f4d97d;font-weight:900;margin-left:4px}
+.previewModalBack{position:fixed;inset:0;background:rgba(20,19,17,.7);backdrop-filter:blur(10px);z-index:75;display:none;align-items:center;justify-content:center;padding:18px}.previewModal{width:min(1120px,100%);max-height:92vh;background:#fbfaf6;border:1px solid var(--line);border-radius:28px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.28);display:grid;grid-template-columns:minmax(0,1fr) 320px}.previewStage{background:linear-gradient(180deg,#2a2924,#1e1d19);padding:26px;display:flex;align-items:center;justify-content:center;position:relative}.previewStage img{max-width:100%;max-height:calc(92vh - 80px);border-radius:18px;box-shadow:0 22px 40px rgba(0,0,0,.25);background:#fff}.previewSide{padding:24px;background:#fff;display:flex;flex-direction:column}.previewSide .kicker{font-size:11px;font-weight:950;letter-spacing:.08em;color:#9b7700}.previewSide h3{margin:8px 0 10px;font-size:26px;line-height:1.25;letter-spacing:-.04em}.previewSide p{font-size:13px;line-height:1.75;color:var(--muted);margin:0 0 14px}.previewMeta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}.previewMeta .box{border:1px solid var(--line);background:#fffef9;border-radius:14px;padding:10px 11px}.previewMeta small{display:block;font-size:10px;color:var(--muted);margin-bottom:4px}.previewMeta b{font-size:12px}.previewThumbs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:auto}.previewThumbs button{padding:0;border:1px solid var(--line);background:#fff;border-radius:12px;overflow:hidden;cursor:pointer}.previewThumbs button.active{border-color:#d8b034;box-shadow:0 0 0 2px rgba(216,176,52,.18)}.previewThumbs img{display:block;width:100%;height:auto}.previewNav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.1);color:#fff;font-size:22px;font-weight:900;display:grid;place-items:center;cursor:pointer}.previewNav.prev{left:16px}.previewNav.next{right:16px}.previewClose{position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.1);color:#fff;font-size:18px;font-weight:900;display:grid;place-items:center;cursor:pointer}.previewBottomBtn{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.previewBottomBtn .solid{border:0;background:#f1c94f;color:#3d3000;border-radius:14px;padding:12px 14px;font-weight:950;cursor:pointer}.previewBottomBtn .line{border:1px solid var(--line);background:#fff;border-radius:14px;padding:12px 14px;font-weight:900;cursor:pointer}.previewCaption{font-size:11px;color:#cfc9bc;position:absolute;left:26px;bottom:20px}
+@media(max-width:980px){.previewModal{grid-template-columns:1fr}.previewStage{min-height:56vh;padding:46px 18px 34px}.previewSide h3{font-size:22px}.previewThumbs{grid-template-columns:repeat(5,minmax(0,1fr))}.previewNav.prev{left:10px}.previewNav.next{right:10px}.previewClose{top:10px;right:10px}}
+@media(max-width:640px){.previewPaper strong:after{display:none}.previewActions{gap:8px}.previewBtn{width:100%;justify-content:center;text-align:center}.previewMeta{grid-template-columns:1fr}.previewStage img{max-height:54vh}}
+@media(max-width:800px){
+  .previewIntro{align-items:flex-start;flex-direction:column}
+  .previewBadgeLarge{padding:7px 10px}
+  .previewRail{grid-template-columns:repeat(5,142px)}
+}
+
+@media(max-width:800px){
+  .storySection{grid-template-columns:1fr}
+  .trustRow{grid-template-columns:1fr}
+  .brand:after{display:none}
+}
+</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head><body>
+<header class="top"><div class="topin"><div class="brand" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="cursor:pointer">나의<b>사주</b></div><nav class="nav"><a href="#free">무료 한 줄 사주</a><a href="#reports">리포트</a><a href="#relation">궁합·가족</a><a href="#my">MY</a></nav><div class="spacer"></div><button class="mybtn" id="authBtn" onclick="handleAuthButton()">로그인</button><button class="mybtn" onclick="document.querySelector('#my').scrollIntoView()">MY REPORT</button></div></header>
+<main>
+<section class="hero" id="free"><div class="heroCopy"><span class="eyebrow">PERSONAL SAJU REPORT</span><h1>지금 가장 궁금한 걸<br><em>한 문장으로</em> 물어보세요.</h1><p class="lead">막연한 오늘의 운세가 아니라, <b>내가 지금 궁금한 질문</b>부터 시작합니다. 생년월일과 질문 하나를 입력하면 핵심 답변을 먼저 확인하고, 더 깊은 이유와 시기는 개인 맞춤 리포트에서 이어서 볼 수 있어요.</p><div class="points"><span class="point">무료 한 줄 답변</span><span class="point">종합·재물·연애·자녀</span><span class="point">궁합·가족</span><span class="point">신년운세·추가질문</span></div></div>
+<div class="formCard"><div class="formTitle">무료 한 줄 사주</div><div class="formSub">입력한 출생 정보는 개인 맞춤 분석을 위해 사용됩니다. 어려운 명리 용어보다 이해하기 쉬운 생활 언어로 보여드려요.</div>
+<div class="profileQuick" id="profileQuick">
+  <div class="profileQuickTop"><b>저장된 프로필</b><span id="profileQuickStatus">로그인하면 프로필을 저장할 수 있어요.</span></div>
+  <div class="profileQuickRow">
+    <select id="savedProfileSelect" aria-label="저장된 프로필 선택"><option value="">저장된 프로필 선택</option></select>
+    <button type="button" class="profileQuickBtn" onclick="loadSelectedProfileToForm()">불러오기</button>
+    <button type="button" class="profileQuickBtn save" onclick="saveCurrentFormToProfile()">현재 정보 저장</button>
+  </div>
+  <div class="profileQuickNotice" id="profileQuickNotice"></div>
+</div><label>가장 궁금한 분야</label><select id="qcat"><option>재물·사업</option><option>직업·이직</option><option>연애·결혼</option><option>인간관계</option><option>자녀·교육</option><option>올해 흐름</option><option>기타</option></select><label>질문 하나</label><textarea id="question" placeholder="예) 올해 사업을 더 키워도 될까요?"></textarea><label>생년 / 월 / 일</label><div class="row"><input id="y" type="number" placeholder="YYYY" min="1900" max="2100" inputmode="numeric"><input id="m" type="number" placeholder="MM" min="1" max="12" inputmode="numeric"><input id="d" type="number" placeholder="DD" min="1" max="31" inputmode="numeric"></div><div class="smallGrid"><div><label>양력 / 음력</label><select id="cal"><option value="solar">양력</option><option value="lunar">음력(평달)</option><option value="lunarLeap">음력(윤달)</option></select></div><div><label>성별</label><select id="g"><option value="여">여</option><option value="남">남</option></select></div></div><label>태어난 시각</label><div class="row"><input id="h" type="number" min="0" max="23" placeholder="21"><input id="mi" type="number" min="0" max="59" placeholder="30"></div><div class="check"><input id="hu" type="checkbox">시간을 모릅니다</div><label>출생지역</label><select id="region"><option value="126.98" data-name="서울">서울</option><option value="126.71" data-name="인천">인천</option><option value="127.03" data-name="경기(수원)">경기(수원)</option><option value="127.07" data-name="경기(화성·동탄)">경기(화성·동탄)</option><option value="129.08" data-name="부산">부산</option><option value="128.60" data-name="대구">대구</option><option value="126.85" data-name="광주">광주</option><option value="127.39" data-name="대전">대전</option><option value="129.31" data-name="울산">울산</option><option value="126.53" data-name="제주">제주</option></select><button class="primary" onclick="freeAnswer()">무료 한 줄 답변 보기</button><div id="err" class="err"></div></div></section>
+<section id="preview"><div class="answerWrap"><div class="answerTag">MY ONE-LINE ANSWER</div><div class="questionShown" id="qShown"></div><div class="oneAnswer" id="answerText"></div><div class="demoNote">※ 무료 답변은 핵심 방향만 먼저 보여드립니다. 자세한 이유·시기·실행 방향은 심층 리포트에서 확인할 수 있어요.</div><div class="demoNote" id="freeSaveStatus"></div></div><div class="unlock"><div><h3>왜 이런 답이 나왔는지 자세히 볼까요?</h3><div class="locks"><span class="lock">정확한 시기</span><span class="lock">현재 대운</span><span class="lock">향후 10년</span><span class="lock">월별 흐름</span><span class="lock">실행 전략</span></div></div><button class="priceBtn" onclick="startCheckout('종합 인생 리포트','29,900원')">종합 리포트 보기 · 29,900원</button></div></section>
+<section class="reportPreview" id="fullReport">
+  <div class="reportHero">
+    <div class="reportKicker">PERSONAL REPORT PREVIEW</div>
+    <h2 id="reportTitle">개인 맞춤 사주 심층 리포트</h2>
+    <p id="reportIntro"></p>
+    <div class="reportSummary" id="reportSummary"></div>
+  </div>
+  <div class="reportToolbar"><div class="note">결제 완료 후 생성된 리포트는 MY REPORT에 저장되며 웹에서 다시 열어보고 PDF로 보관할 수 있습니다.</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="document.getElementById('free').scrollIntoView({behavior:'smooth'})">입력 수정</button><button class="pdfBtn" onclick="saveReportPdf()">리포트 PDF로 받기</button></div></div>
+  <div class="reportToc"><h3>리포트 구성</h3><div class="tocGrid" id="reportToc"></div></div>
+  <div class="reportParts" id="reportParts"></div>
+  <div class="reportEnd"><b>리포트 이용 안내</b><p>이 리포트는 전통 명리의 해석 틀을 바탕으로 한 개인화 참고 콘텐츠입니다. 미래를 확정하거나 건강·법률·투자 결과를 보장하지 않습니다.</p></div>
+</section>
+
+
+<section class="storySection" aria-label="리포트 구성 안내">
+  <div class="storyDark">
+    <span class="eyebrow">SIGNATURE REPORT</span>
+    <h2>오늘의 운세 한 장이 아니라,<br>내 인생을 읽는 한 권의 리포트</h2>
+    <p>성격 몇 줄로 끝내지 않습니다. 타고난 성향에서 시작해 감정과 인간관계, 직업과 커리어, 돈과 사업, 연애와 결혼, 자녀와 가족, 생활 리듬, 귀인과 현재·미래 흐름까지 하나의 이야기로 연결합니다.</p>
+    <div class="trustRow">
+      <div class="trustCard"><b>11 PART</b><span>삶의 영역을 빠짐없이 나눠서 분석</span></div>
+      <div class="trustCard"><b>132 QUESTIONS</b><span>실제로 궁금해할 질문을 중심으로 구성</span></div>
+      <div class="trustCard"><b>MY REPORT</b><span>구매 후 웹 열람 + PDF 보관</span></div>
+    </div>
+    <div class="previewIntro">
+      <div>
+        <b>실제 리포트 미리보기</b>
+        <span>당신 리포트 기준으로 70장 이상 분량이 이어진다는 느낌을 바로 볼 수 있도록, 실제 PDF 일부를 5장만 골라 하단 내용을 블러 처리해 보여드립니다.</span>
+      </div>
+      <div class="previewBadgeLarge">70+ PAGES PREVIEW</div>
+    </div>
+    <div class="previewRail" aria-label="리포트 미리보기 5장">
+      <div class="previewPaper" tabindex="0" role="button" onclick="openPreviewModal(0)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPreviewModal(0)}"><img src="/report-preview/page-01.png" alt="리포트 미리보기 1"><strong>도입 · 리포트 시작</strong><small>첫 페이지와 전체 분위기를 먼저 보여줍니다.</small></div>
+      <div class="previewPaper" tabindex="0" role="button" onclick="openPreviewModal(1)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPreviewModal(1)}"><img src="/report-preview/page-02.png" alt="리포트 미리보기 2"><strong>핵심 성향</strong><small>나는 어떤 사람인지 본격적으로 읽는 파트입니다.</small></div>
+      <div class="previewPaper" tabindex="0" role="button" onclick="openPreviewModal(2)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPreviewModal(2)}"><img src="/report-preview/page-03.png" alt="리포트 미리보기 3"><strong>재물 · 사업</strong><small>돈이 들어오고 새는 방식까지 이어지는 분석입니다.</small></div>
+      <div class="previewPaper" tabindex="0" role="button" onclick="openPreviewModal(3)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPreviewModal(3)}"><img src="/report-preview/page-04.png" alt="리포트 미리보기 4"><strong>관계 · 가족</strong><small>감정 흐름과 가까운 사람과의 거리감을 다룹니다.</small></div>
+      <div class="previewPaper" tabindex="0" role="button" onclick="openPreviewModal(4)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPreviewModal(4)}"><img src="/report-preview/page-05.png" alt="리포트 미리보기 5"><strong>흐름 · 실행전략</strong><small>현재 흐름과 앞으로 무엇을 바꿀지 연결합니다.</small></div>
+    </div>
+    <div class="previewActions">
+      <button class="previewBtn" onclick="openPreviewModal(0)">샘플 리포트 5p 보기</button>
+      <button class="previewBtn secondary" onclick="scrollToReportProducts()">종합 리포트 바로 보기</button>
+    </div>
+    <div class="previewHint">구매 전에는 미리보기 5장만 보이고, 결제 후에는 전체 리포트가 MY REPORT와 PDF로 제공됩니다.</div>
+  </div>
+  <div class="reportMap">
+    <span class="badgeGold">종합 인생 리포트 구성</span>
+    <h3 style="font-size:22px;margin:14px 0 16px;letter-spacing:-.035em">이런 내용까지 깊게 봅니다</h3>
+    <div class="mapGrid">
+      <div class="mapItem"><b>01 나는 어떤 사람인가</b><span>겉과 속 · 결정 · 경쟁 · 회복 · 인정욕구</span></div>
+      <div class="mapItem"><b>02 감정과 인간관계</b><span>신뢰 · 상처 · 거절 · 질투 · 관계 종료 기준</span></div>
+      <div class="mapItem"><b>03 직업·커리어</b><span>조직 · 독립 · 리더십 · 전문성 · 사회적 자산</span></div>
+      <div class="mapItem"><b>04 돈·재물·사업</b><span>소비 · 대출 · 투자 · 가격 · 협상 · 확장</span></div>
+      <div class="mapItem"><b>05 사업 심층</b><span>고객 · 외주 · 동업 · 브랜드 · 수익모델</span></div>
+      <div class="mapItem"><b>06 연애·사랑·결혼</b><span>끌림 · 표현 · 질투 · 권태 · 부부 역할</span></div>
+      <div class="mapItem"><b>07 자녀·부모·가족</b><span>부모 역할 · 아이 독립 · 가족 돈 · 책임</span></div>
+      <div class="mapItem"><b>08 건강·생활 리듬</b><span>과로 · 수면 · 식사 · 운동 · 회복 패턴</span></div>
+      <div class="mapItem"><b>09 사람운·귀인</b><span>소개 · 악연 · 경쟁 · 평판 · 변화</span></div>
+      <div class="mapItem"><b>10 지금부터 앞으로</b><span>현재 10년 · 올해 · 월별 · 향후 흐름</span></div>
+      <div class="mapItem" style="grid-column:1/-1"><b>11 내 질문 + 실행전략</b><span>지금 가장 궁금한 질문과 1개월 · 3개월 · 1년 행동 기준</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="reports"><div class="sectionHead"><div><h2>원하는 주제로 더 깊게</h2><p>한 번 저장한 사주 데이터로 여러 리포트를 이어서 구매할 수 있습니다.</p></div><p>REPORT COLLECTION</p></div><div class="products">
+<div class="product" onclick="openProduct('종합 인생 리포트','29,900원')" style="border:1.5px solid #dfbd49;box-shadow:0 14px 34px rgba(164,127,17,.10)"><div class="picon">✦</div><h3>종합 인생 리포트</h3><p>성향, 관계, 돈, 일, 대운, 세운과 실행 전략까지 한 번에.</p><div class="meta"><span class="active">메인 상품</span><span>29,900원</span></div></div><div class="product" onclick="openProduct('재물·사업 리포트','29,900원')"><div class="picon">₩</div><h3>재물·사업</h3><p>돈을 버는 방식, 사업 적성, 수입 구조와 시기 중심 분석.</p><div class="meta"><span class="active">전문 분석</span><span>29,900원</span></div></div><div class="product" onclick="openProduct('연애·결혼 리포트','24,900원')"><div class="picon">♡</div><h3>연애·결혼</h3><p>연애 패턴, 배우자 성향, 갈등 지점과 관계의 흐름.</p><div class="meta"><span class="active">전문 분석</span><span>24,900원</span></div></div><div class="product" onclick="openProduct('자녀 사주 리포트','29,900원')"><div class="picon">芽</div><h3>자녀 사주</h3><p>기질, 공부, 감정, 친구, 양육 방식과 진로 씨앗.</p><div class="meta"><span class="active">가족 확장</span><span>29,900원</span></div></div><div class="product" onclick="openProduct('커플·부부 궁합','39,900원')"><div class="picon">∞</div><h3>커플·부부 궁합</h3><p>두 사람의 구조를 함께 보고 강점과 충돌 패턴을 분석.</p><div class="meta"><span class="active">2인 분석</span><span>39,900원</span></div></div><div class="product" onclick="openProduct('부모·자녀 궁합','39,900원')"><div class="picon">家</div><h3>부모·자녀 궁합</h3><p>부모와 아이가 부딪히는 이유와 소통 방식을 구체적으로.</p><div class="meta"><span class="active">2인 분석</span><span>39,900원</span></div></div><div class="product" onclick="openProduct('2027 신년 운세','9,900원')"><div class="picon">27</div><h3>신년 운세</h3><p>한 해의 핵심 흐름과 월별 변화, 중요한 시기를 빠르게.</p><div class="meta"><span class="active">매년 재구매</span><span>9,900원</span></div></div><div class="product" onclick="openProduct('추가 질문 1개','3,900원')"><div class="picon">?</div><h3>추가 질문</h3><p>기존 명식은 그대로 두고 새로 궁금한 질문만 추가 분석.</p><div class="meta"><span class="active">빠른 답변</span><span>3,900원</span></div></div></div>
+<div class="commerceInfo">
+  <h3>판매·제공 안내</h3>
+  <div class="commerceGrid">
+    <div class="commerceBox"><small>상품 유형</small><b>개인 맞춤형 디지털 콘텐츠(사주 리포트)</b></div>
+    <div class="commerceBox"><small>제공 방식</small><b>결제 완료 후 MY REPORT 웹 열람 및 PDF 제공</b></div>
+    <div class="commerceBox"><small>가격</small><b>각 상품 카드에 표시된 원화(KRW) 최종 판매가 기준</b></div>
+    <div class="commerceBox"><small>청약철회·환불</small><b><a href="/refund.html" target="_top" style="text-decoration:underline">환불·취소 정책 확인</a></b></div>
+  </div>
+</div>
+</section>
+<section class="section" id="my"><div class="sectionHead"><div><h2>MY REPORT</h2><p>내 사주와 가족 프로필, 구매 리포트를 한곳에서 관리합니다.</p></div></div><div class="dash"><div class="panel"><h3>내 가족</h3><div class="desc">한 번 등록해두면 상품마다 생년월일을 다시 입력할 필요가 없습니다.</div><div class="people" id="people"><div class="familyLoading">프로필을 불러오는 중입니다.</div></div><button class="add" onclick="openFamilyModal()">+ 가족 프로필 추가</button></div><div class="panel"><h3>구매한 리포트</h3><div class="desc">웹에서 다시 보고 PDF로 저장하는 영역입니다.</div><div class="reportList"><div class="report"><div class="rmark">A</div><div><b>종합 인생 리포트</b><small>성향 · 재물 · 관계 · 10년 흐름</small></div><span class="status">샘플</span></div><div class="report"><div class="rmark">27</div><div><b>2027 신년 운세</b><small>월별 흐름 · 좋은 시기 · 주의 시기</small></div><span class="status">예정</span></div></div></div></div></section>
+<section class="section" id="relation"><div class="sectionHead"><div><h2>한 번 입력하면, 다음 리포트는 더 간단하게</h2><p>내 정보와 가족 프로필을 저장해두면 매번 생년월일을 다시 입력하지 않아도 됩니다.</p></div></div><div class="flow"><div class="step"><span class="num">01</span><b>프로필 등록</b><span>생년월일, 시간, 성별, 지역</span></div><div class="step"><span class="num">02</span><b>개인 분석</b><span>출생 정보로 나만의 사주 구조를 분석</span></div><div class="step"><span class="num">03</span><b>상품 선택</b><span>종합·재물·연애·자녀·궁합</span></div><div class="step"><span class="num">04</span><b>심층 리포트 생성</b><span>선택한 주제에 맞춰 상세 분석을 구성</span></div><div class="step"><span class="num">05</span><b>MY REPORT</b><span>웹 리포트, PDF, 추가 질문, 재구매</span></div></div></section>
+
+<div class="familyModalBack" id="familyModalBack" onclick="if(event.target===this)closeFamilyModal()">
+  <div class="familyModal" role="dialog" aria-modal="true" aria-labelledby="familyModalTitle">
+    <div class="familyModalHead"><div><h3 id="familyModalTitle">가족 프로필 등록</h3><p>리포트와 궁합 분석에 사용할 출생 정보를 저장합니다.</p></div><button class="familyClose" onclick="closeFamilyModal()" aria-label="닫기">×</button></div>
+    <input type="hidden" id="fp_id">
+    <div class="familyGrid">
+      <div class="familyField"><label>프로필 이름</label><input id="fp_label" placeholder="예: 나, 배우자, 첫째"></div>
+      <div class="familyField"><label>관계</label><select id="fp_relationship"><option value="self">본인</option><option value="spouse">배우자</option><option value="child">자녀</option><option value="parent">부모</option><option value="family">가족</option><option value="other">기타</option></select></div>
+      <div class="familyField"><label>성별</label><select id="fp_gender"><option value="female">여성</option><option value="male">남성</option><option value="unknown">선택 안 함</option></select></div>
+      <div class="familyField"><label>양력/음력</label><select id="fp_calendar"><option value="solar">양력</option><option value="lunar">음력</option></select></div>
+      <div class="familyField"><label>생년월일</label><input type="date" id="fp_birth_date"></div>
+      <div class="familyField"><label>출생시간</label><input type="time" id="fp_birth_time"></div>
+      <div class="familyField full"><label>출생지역</label><input id="fp_region" placeholder="예: 서울, 경기 화성, 제주"></div>
+      <div class="familyField full"><label class="familyCheck"><input type="checkbox" id="fp_time_unknown" onchange="syncFamilyTimeUnknown()"> 출생시간을 모릅니다</label><label class="familyCheck"><input type="checkbox" id="fp_leap"> 음력 윤달입니다</label><label class="familyCheck"><input type="checkbox" id="fp_primary"> 대표 프로필로 사용</label></div>
+    </div>
+    <div class="familyActions"><button class="familyDelete" id="familyDeleteBtn" onclick="deleteFamilyProfile()" style="display:none">삭제</button><button class="familyCancel" onclick="closeFamilyModal()">취소</button><button class="familySave" onclick="saveFamilyProfile()">저장</button></div>
+  </div>
+</div>
+<div class="previewModalBack" id="previewModalBack" onclick="if(event.target===this)closePreviewModal()">
+  <div class="previewModal" role="dialog" aria-modal="true" aria-label="리포트 미리보기 확대">
+    <div class="previewStage">
+      <button class="previewClose" onclick="closePreviewModal()" aria-label="닫기">×</button>
+      <button class="previewNav prev" onclick="changePreview(-1)" aria-label="이전 페이지">‹</button>
+      <img id="previewModalImage" src="/report-preview/page-01.png" alt="리포트 확대 미리보기">
+      <button class="previewNav next" onclick="changePreview(1)" aria-label="다음 페이지">›</button>
+      <div class="previewCaption" id="previewModalPage">01 / 05</div>
+    </div>
+    <div class="previewSide">
+      <div class="kicker">REAL REPORT PREVIEW</div>
+      <h3 id="previewModalTitle">도입 · 리포트 시작</h3>
+      <p id="previewModalDesc">첫 페이지와 전체 분위기를 먼저 보여줍니다.</p>
+      <div class="previewMeta">
+        <div class="box"><small>보여주는 범위</small><b>실제 리포트 일부 5장</b></div>
+        <div class="box"><small>구매 후 제공</small><b>70장 이상 전체본 + PDF</b></div>
+      </div>
+      <p>미리보기는 실제 고객 리포트 톤과 구성 흐름을 보여주기 위한 샘플입니다. 민감한 본문은 블러 처리되어 있고, 결제 후에는 같은 형식의 전체 리포트를 MY REPORT에서 이어서 볼 수 있습니다.</p>
+      <div class="previewBottomBtn">
+        <button class="solid" onclick="startCheckout('종합 인생 리포트','29,900원');closePreviewModal();">이 리포트 구매하기</button>
+        <button class="line" onclick="closePreviewModal();scrollToReportProducts();">상품 설명 보기</button>
+      </div>
+      <div class="previewThumbs" id="previewThumbs"></div>
+    </div>
+  </div>
+</div>
+</main>
+<footer>
+  <div class="legalLinks">
+    <a href="/terms.html" target="_top">이용약관</a>
+    <a href="/privacy.html" target="_top">개인정보처리방침</a>
+    <a href="/refund.html" target="_top">환불·취소 정책</a>
+    <a href="/business.html" target="_top">사업자정보</a>
+  </div>
+  <div class="bizFooter">
+    <b>라이즈업메이커스</b> · 대표 김민경 · 사업자등록번호 810-07-01254<br>
+    경기도 화성시 동탄구 동탄대로24길 199, 475동 1103호(영천동, 동탄역 포레너스)<br>
+    고객센터 <a href="tel:050713905207">0507-1390-5207</a> · 이메일 <a href="mailto:lovemk0618@naver.com">lovemk0618@naver.com</a><br>통신판매업 신고번호 2022-제주화북-0011호<br>
+    서비스 URL: https://saju.projectn.xyz<br>
+    전통 명리 해석을 바탕으로 한 참고용 디지털 콘텐츠이며 의료·법률·투자 결과를 보장하지 않습니다.<br>
+    © 2026 라이즈업메이커스. All rights reserved.
+  </div>
+</footer><nav class="mobileNav"><a href="#free"><span>✦</span>무료사주</a><a href="#reports"><span>▦</span>리포트</a><a href="#relation"><span>∞</span>궁합</a><a href="#my"><span>●</span>MY</a></nav><div class="modalBack" id="modalBack" onclick="if(event.target===this)closeModal()"><div class="modal"><h3 id="modalTitle"></h3><p id="modalText"></p><div class="modalBtns"><button class="close" onclick="closeModal()">닫기</button><button class="go" id="modalBuyBtn" onclick="confirmCheckout()">구매하기</button></div></div></div>
+<script>
+
+/* ===== 개인 맞춤 사주 리포트 계산 엔진 =====
+   v2 + 추가 개선사항
+   1) 출생지역 선택을 항상 표시하고 지역시 보정을 기본 ON
+   2) 신강·신약을 태강~태약 7단계로 세분화(검증용 세력지표)
+   3) 억부형 용신 후보 + 계절 조후 후보를 별도 표시
+   4) 일간 기준 12운성(연·월·일·시) 계산 추가
+   5) AQUA 참고 리포트 2건을 검증 fixture로 비교 표시
+   6) 입력 시각과 보정 시각, 보정량, 출생지역을 명시
+   ※ 신강·신약/용신은 명리학파별 차이가 있으므로 '확정치'가 아니라 검증용 후보입니다.
+*/
+const BASE=1900, BASE_NY=2415051;
+const PACKED=[67949,2396,5294,43597,6732,6954,36181,2772,4954,18781,2396,54427,5274,6730,47913,5802,2772,21210,4794,59739,2358,5270,46667,3410,5544,38581,1388,4790,18743,2350,52374,7316,7498,44457,2922,1388,29358,4700,63789,6442,6804,56138,5842,2778,34139,1210,4698,22827,5418,64149,5780,5802,43733,2486,1206,29271,2646,70955,3370,3412,54698,5482,2412,38062,5294,2638,27942,6954,60757,2772,4954,43357,2396,5276,39501,6730,72361,5800,6868,53978,4790,2358,38043,5270,87627,3402,3496,54965,1388,4790,43319,2350,3222,27978,7498,69033,2906,1388,45678,4700,6444,40085,6804,6986,19285,2776,62811,1210,4698,47403,5418,5780,30538,5802,76469,2420,5302,43607,2646,5418,38549,3412,5546,19125,2412,54446,5294,2638,44326,6950,2900,30058,4826,92509,2396,5274,55885,6730,6820,47956,5844,4826,18779,2358,62615,5270,5706,46757,3496,5556];
+function mod(a,n){return ((a%n)+n)%n;}
+function lunarYearDays(p){const leap=p>>13,mask=p&0x1FFF,n=leap?13:12;let s=0;for(let i=0;i<n;i++)s+=((mask>>(12-i))&1)?30:29;return s;}
+function lunarToJDN(Y,m,d,isLeap){
+  if(Y<1900||Y>=1900+PACKED.length) throw new Error(`음력 변환 지원 범위는 1900~${1899+PACKED.length}년입니다.`);
+  let ny=BASE_NY; for(let yy=BASE;yy<Y;yy++)ny+=lunarYearDays(PACKED[yy-BASE]);
+  const p=PACKED[Y-BASE], leap=p>>13, mask=p&0x1FFF;
+  if(isLeap && leap!==m) throw new Error(`${Y}년 음력 ${m}월은 윤달이 아닙니다.`);
+  const order=[]; for(let mm=1;mm<=12;mm++){order.push([mm,false]);if(leap===mm)order.push([mm,true]);}
+  let off=0;
+  for(let i=0;i<order.length;i++){const L=((mask>>(12-i))&1)?30:29;if(order[i][0]===m&&order[i][1]===isLeap){if(d<1||d>L)throw new Error(`해당 음력 달은 ${L}일까지입니다.`);return ny+off+(d-1);}off+=L;}
+  throw new Error('음력 변환 실패');
+}
+function jdnToSolar(j){let a=j+32044,b=Math.floor((4*a+3)/146097),c=a-Math.floor(146097*b/4);let d=Math.floor((4*c+3)/1461),e=c-Math.floor(1461*d/4),m=Math.floor((5*e+2)/153);return [100*b+d-4800+Math.floor(m/10),m+3-12*Math.floor(m/10),e-Math.floor((153*m+2)/5)+1];}
+
+const CHEONGAN=['갑','을','병','정','무','기','경','신','임','계'];
+const JIJI=['자','축','인','묘','진','사','오','미','신','유','술','해'];
+const OHAENG=['목','화','토','금','수'];
+const JIJI_OHAENG=[4,2,0,0,2,1,1,2,3,3,2,4];
+const JIJI_BONGI=[9,5,0,1,4,2,3,5,6,7,4,8];
+const SIP=['비견','겁재','식신','상관','편재','정재','편관','정관','편인','정인'];
+const DDI=['쥐','소','호랑이','토끼','용','뱀','말','양','원숭이','닭','개','돼지'];
+const HIDDEN=[['계'],['기','계','신'],['갑','병','무'],['을'],['무','을','계'],['병','무','경'],['정','기'],['기','정','을'],['경','임','무'],['신'],['무','신','정'],['임','갑']];
+
+function jdn(Y,m,d){const a=Math.floor((14-m)/12),y=Y+4800-a,mm=m+12*a-3;return d+Math.floor((153*mm+2)/5)+365*y+Math.floor(y/4)-Math.floor(y/100)+Math.floor(y/400)-32045;}
+const ANCHOR=jdn(2000,1,1),ANCHOR_IDX=54;
+function ilju(Y,m,d){const idx=mod(ANCHOR_IDX+(jdn(Y,m,d)-ANCHOR),60);return {gan:CHEONGAN[idx%10],ji:JIJI[idx%12]};}
+function ganji60(g,j){for(let i=0;i<60;i++)if(i%10===g&&i%12===j)return i;return -1;}
+function sipseong(il,t){const same=(il%2)===(t%2),rel=mod(Math.floor(t/2)-Math.floor(il/2),5);if(rel===0)return same?'비견':'겁재';if(rel===1)return same?'식신':'상관';if(rel===2)return same?'편재':'정재';if(rel===3)return same?'편관':'정관';return same?'편인':'정인';}
+
+/* ===== 태양 황경 기반 절입 시각 (Meeus 계열 저정밀 태양식, KST) ===== */
+const KST=9*60;
+function dateToJD(dt){return dt.getTime()/86400000+2440587.5;}
+function jdToDate(jd){return new Date((jd-2440587.5)*86400000);}
+function sunLongitude(jd){
+  const T=(jd-2451545.0)/36525;
+  const L0=mod(280.46646+36000.76983*T+0.0003032*T*T,360);
+  const M=(357.52911+35999.05029*T-0.0001537*T*T)*Math.PI/180;
+  const C=(1.914602-0.004817*T-0.000014*T*T)*Math.sin(M)+(0.019993-0.000101*T)*Math.sin(2*M)+0.000289*Math.sin(3*M);
+  const omega=(125.04-1934.136*T)*Math.PI/180;
+  return mod(L0+C-0.00569-0.00478*Math.sin(omega),360);
+}
+function angDiff(a,b){return mod(a-b+180,360)-180;}
+const JIE_DEFS=[
+  ['소한',285,1,6,1],['입춘',315,2,4,2],['경칩',345,3,6,3],['청명',15,4,5,4],['입하',45,5,6,5],['망종',75,6,6,6],['소서',105,7,7,7],['입추',135,8,8,8],['백로',165,9,8,9],['한로',195,10,8,10],['입동',225,11,7,11],['대설',255,12,7,0]
+];
+const termCache={};
+function kstDateUTC(y,m,d,h=12,min=0){return new Date(Date.UTC(y,m-1,d,h-9,min,0));}
+function findSolarTerm(year,name,target,m,d){
+  const key=`${year}-${name}`; if(termCache[key])return new Date(termCache[key]);
+  const center=kstDateUTC(year,m,d,12), span=4*86400000;
+  let lo=dateToJD(new Date(center.getTime()-span)),hi=dateToJD(new Date(center.getTime()+span));
+  let prevJ=lo,prev=angDiff(sunLongitude(lo),target),a=null,b=null;
+  for(let i=1;i<=240;i++){const x=lo+(hi-lo)*i/240,v=angDiff(sunLongitude(x),target);if(prev===0||v===0||prev*v<0){a=prevJ;b=x;break;}prevJ=x;prev=v;}
+  if(a===null)throw new Error('절기 계산 실패: '+name);
+  for(let i=0;i<55;i++){const mid=(a+b)/2,fa=angDiff(sunLongitude(a),target),fm=angDiff(sunLongitude(mid),target);if(fa*fm<=0)b=mid;else a=mid;}
+  const dt=jdToDate((a+b)/2);termCache[key]=dt.toISOString();return dt;
+}
+function getJieListAround(year){
+  const out=[];for(const yy of [year-1,year,year+1])for(const [name,target,m,d,branch] of JIE_DEFS)out.push({name,branch,dt:findSolarTerm(yy,name,target,m,d)});
+  out.sort((a,b)=>a.dt-b.dt);return out;
+}
+function fmtKST(dt){const z=new Date(dt.getTime()+KST*60000);return `${z.getUTCFullYear()}-${String(z.getUTCMonth()+1).padStart(2,'0')}-${String(z.getUTCDate()).padStart(2,'0')} ${String(z.getUTCHours()).padStart(2,'0')}:${String(z.getUTCMinutes()).padStart(2,'0')}`;}
+function birthUTC(Y,m,d,h=12,mi=0){return new Date(Date.UTC(Y,m-1,d,h-9,mi,0));}
+function jieAt(dt){const list=getJieListAround(dt.getUTCFullYear()+((dt.getUTCMonth()===11)?1:0));let cur=list[0];for(const x of list){if(x.dt<=dt)cur=x;else break;}return cur;}
+function prevNextJie(dt){const list=getJieListAround(dt.getUTCFullYear());let prev=null,next=null;for(const x of list){if(x.dt<=dt)prev=x;else{next=x;break;}}return {prev,next};}
+function yearPillarExact(Y,m,d,h=12,mi=0){const dt=birthUTC(Y,m,d,h,mi),lc=findSolarTerm(Y,'입춘',315,2,4);let yy=Y;if(dt<lc)yy--;const idx=mod(yy-1984,60);return {gan:CHEONGAN[idx%10],ji:JIJI[idx%12]};}
+function monthPillarExact(yGan,Y,m,d,h=12,mi=0){const dt=birthUTC(Y,m,d,h,mi),cur=jieAt(dt);const ji=cur.branch;const inwol=(yGan%5)*2+2,gan=mod(inwol+mod(ji-2,12),10);return {gan:CHEONGAN[gan],ji:JIJI[ji],jie:cur.name,jie_time:fmtKST(cur.dt)};}
+
+function hourBranch(h){const t=[[23,24,0],[0,1,0],[1,3,1],[3,5,2],[5,7,3],[7,9,4],[9,11,5],[11,13,6],[13,15,7],[15,17,8],[17,19,9],[19,21,10],[21,23,11]];for(const [lo,hi,ji] of t)if(h>=lo&&h<hi)return ji;return 0;}
+function eotMinutes(Y,m,d){const N=Math.floor((Date.UTC(Y,m-1,d)-Date.UTC(Y,0,0))/86400000),B=2*Math.PI*(N-81)/364;return 9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B);}
+function effectiveInfo(Y,m,d,hour,minute,lon,eot){let corr=0;if(lon!=null)corr+=(lon-135)*4;if(eot)corr+=eotMinutes(Y,m,d);const raw=hour*60+minute+corr,dayShift=Math.floor(raw/1440);return {minutes:mod(Math.round(raw),1440),correction:Math.round(corr),dayShift};}
+function effectiveMinutes(Y,m,d,hour,minute,lon,eot){return effectiveInfo(Y,m,d,hour,minute,lon,eot).minutes;}
+function hourPillar(ilgan,totalMinutes){if(totalMinutes===null)return null;const h=Math.floor(totalMinutes/60),ji=hourBranch(h),gan=mod((ilgan%5)*2+ji,10);return {gan:CHEONGAN[gan],ji:JIJI[ji]};}
+
+/* ===== 대운 ===== */
+function daeunExact(yGan,gender,mp,ilgan,birthDt){
+  const yang=(yGan%2===0),forward=(yang&&gender==='남')||(!yang&&gender==='여');
+  const pn=prevNextJie(birthDt),anchor=forward?pn.next:pn.prev;
+  if(!anchor)throw new Error('대운 절기 기준 계산 실패');
+  const diffDays=Math.abs(anchor.dt-birthDt)/86400000;
+  const startYears=diffDays/3; // 전통 환산: 3일 = 1년
+  const wholeDays=Math.floor(diffDays); const q=Math.floor(wholeDays/3), r=wholeDays%3; const startAge=Math.max(1,q+(r===2?1:0)); // 1사2입
+  const totalMonths=Math.round(startYears*12),sy=Math.floor(totalMonths/12),sm=totalMonths%12;
+  const start=ganji60(CHEONGAN.indexOf(mp.gan),JIJI.indexOf(mp.ji)),out=[];
+  for(let k=0;k<8;k++){const step=k+1,idx=forward?mod(start+step,60):mod(start-step,60),gi=idx%10,ji=idx%12,a=startAge+k*10;out.push({age_start:a,age_end:a+9,gan:CHEONGAN[gi],ji:JIJI[ji],gan_sipseong:sipseong(ilgan,gi),ji_sipseong:sipseong(ilgan,JIJI_BONGI[ji])});}
+  return {list:out,forward,startAge,startYears,startDetail:`${sy}년 ${sm}개월`,anchorName:anchor.name,anchorTime:fmtKST(anchor.dt),diffDays};
+}
+
+/* ===== 신살/관계 ===== */
+const CHEONEUL={0:[1,7],1:[0,8],2:[11,9],3:[11,9],4:[1,7],5:[0,8],6:[1,7],7:[2,6],8:[3,5],9:[3,5]};
+const MUNCHANG={0:5,1:6,2:8,3:9,4:8,5:9,6:11,7:0,8:2,9:3},YANGIN={0:3,2:6,4:6,6:9,8:0};
+const BAEKHO=new Set(['0,4','1,7','2,10','3,1','4,4','8,10','9,1']),GOEGANG=new Set(['6,4','6,10','8,4','8,10','4,4','4,10']);
+function samhapGroup(ji){if([2,6,10].includes(ji))return'fire';if([8,0,4].includes(ji))return'water';if([5,9,1].includes(ji))return'metal';return'wood';}
+const DOHWA={fire:3,water:9,metal:6,wood:0},YEOKMA={fire:8,water:2,metal:11,wood:5},HWAGAE={fire:10,water:4,metal:1,wood:7};
+function sinsal(P){const names=['연','월','일','시'].filter(k=>P[k]),g={},j={};names.forEach(k=>{g[k]=CHEONGAN.indexOf(P[k].gan);j[k]=JIJI.indexOf(P[k].ji);});const ilg=g['일'],ilj=j['일'],res={},add=(nm,pred)=>{const h=names.filter(pred);if(h.length)res[nm]=h;};add('천을귀인',k=>CHEONEUL[ilg].includes(j[k]));add('문창귀인',k=>j[k]===MUNCHANG[ilg]);if(ilg in YANGIN)add('양인살',k=>j[k]===YANGIN[ilg]);const grps=new Set([samhapGroup(j['연']),samhapGroup(ilj)]),dh=new Set([...grps].map(x=>DOHWA[x])),ym=new Set([...grps].map(x=>YEOKMA[x])),hg=new Set([...grps].map(x=>HWAGAE[x]));add('도화살',k=>dh.has(j[k]));add('역마살',k=>ym.has(j[k]));add('화개살',k=>hg.has(j[k]));add('백호살',k=>BAEKHO.has(g[k]+','+j[k]));add('괴강살',k=>GOEGANG.has(g[k]+','+j[k]));const st=mod(ilj-ilg,12),gm=[mod(st+10,12),mod(st+11,12)];add('공망',k=>k!=='일'&&gm.includes(j[k]));return res;}
+const SIBI_ORDER=['지살','연살','월살','망신살','장성살','반안살','역마살','육해살','화개살','겁살','재살','천살'];
+const SAENGJI={fire:2,water:8,metal:5,wood:11};
+function sibisinsal(refJi,P){const base=SAENGJI[samhapGroup(refJi)],out={};for(const k of ['연','월','일','시'])if(P[k]){const j=JIJI.indexOf(P[k].ji);out[k]=SIBI_ORDER[mod(j-base,12)];}return out;}
+const fs=(a,b)=>[a,b].sort((x,y)=>x-y).join(','),GANHAP=new Set([fs(0,5),fs(1,6),fs(2,7),fs(3,8),fs(4,9)]),YUKHAP=new Set([fs(0,1),fs(2,11),fs(3,10),fs(4,9),fs(5,8),fs(6,7)]),CHUNG=new Set([fs(0,6),fs(1,7),fs(2,8),fs(3,9),fs(4,10),fs(5,11)]),PA=new Set([fs(0,9),fs(3,6),fs(4,1),fs(7,10),fs(2,11),fs(5,8)]),HAE=new Set([fs(0,7),fs(1,6),fs(2,5),fs(3,4),fs(8,11),fs(9,10)]),HYEONG=new Set([fs(2,5),fs(5,8),fs(2,8),fs(1,10),fs(10,7),fs(1,7),fs(0,3)]);
+const SAMHAP={'수국':[8,0,4],'화국':[2,6,10],'금국':[5,9,1],'목국':[11,3,7]},WANGJI={'수국':0,'화국':6,'금국':9,'목국':3};
+function relations(P){const names=['연','월','일','시'].filter(k=>P[k]),G={},J={};names.forEach(k=>{G[k]=CHEONGAN.indexOf(P[k].gan);J[k]=JIJI.indexOf(P[k].ji);});const res={'천간합':[],'육합':[],'삼합':[],'반합':[],'충':[],'형':[],'파':[],'해':[]};for(let a=0;a<names.length;a++)for(let b=a+1;b<names.length;b++){const ka=names[a],kb=names[b];if(GANHAP.has(fs(G[ka],G[kb])))res['천간합'].push(`${ka}간·${kb}간 ${P[ka].gan}${P[kb].gan}합`);const ja=J[ka],jb=J[kb],lab=`${ka}지·${kb}지 ${JIJI[ja]}${JIJI[jb]}`;if(YUKHAP.has(fs(ja,jb)))res['육합'].push(lab+'합');if(CHUNG.has(fs(ja,jb)))res['충'].push(lab+'충');if(HYEONG.has(fs(ja,jb)))res['형'].push(lab+'형');if(PA.has(fs(ja,jb)))res['파'].push(lab+'파');if(HAE.has(fs(ja,jb)))res['해'].push(lab+'해');if(ja===jb&&[4,6,9,11].includes(ja))res['형'].push(`${ka}지·${kb}지 ${JIJI[ja]}${JIJI[jb]} 자형`);}for(const nm in SAMHAP){const [g1,g2,g3]=SAMHAP[nm],pres=names.filter(k=>[g1,g2,g3].includes(J[k])),uniq=new Set(pres.map(k=>J[k]));if(uniq.size===3)res['삼합'].push(`${pres.join('·')} ${nm} 삼합`);else if(uniq.size===2&&uniq.has(WANGJI[nm]))res['반합'].push(`${pres.join('·')} ${nm} 반합`);}const o={};for(const k in res)if(res[k].length)o[k]=res[k];return o;}
+
+/* ===== v3 7단계 세력지표 + 용신 후보 ===== */
+function elementOfGan(g){return Math.floor(g/2);}
+function strengthIndex(P,ilgan){
+  const dm=elementOfGan(ilgan),resource=mod(dm-1,5);let support=0,total=0;
+  for(const k of ['연','월','일','시'])if(P[k]){
+    const gi=CHEONGAN.indexOf(P[k].gan),ji=JIJI.indexOf(P[k].ji);
+    support += ([dm,resource].includes(elementOfGan(gi))?1:0); total+=1;
+    const w=k==='월'?2:1; support += ([dm,resource].includes(JIJI_OHAENG[ji])?w:0); total+=w;
+  }
+  const pct=support/total*100; let label='중화';
+  if(pct>=75) label='태강';
+  else if(pct>=65) label='신강';
+  else if(pct>=55) label='중화신강';
+  else if(pct>=45) label='중화';
+  else if(pct>=35) label='중화신약';
+  else if(pct>=25) label='신약';
+  else label='태약';
+  return {pct,label,method:'천간 1 + 지지 1(월지 2), 비겁·인성 생조 비율 / v3 7단계'};
+}
+function usefulGodCandidates(P,ilgan,strength){
+  const dm=elementOfGan(ilgan),resource=mod(dm-1,5),controller=mod(dm+3,5);
+  const monthJi=JIJI.indexOf(P['월'].ji);
+  let eokbu;
+  if(['태약','신약','중화신약'].includes(strength.label)) eokbu=OHAENG[resource];
+  else if(['태강','신강','중화신강'].includes(strength.label)) eokbu=OHAENG[controller];
+  else eokbu='균형 확인';
+  let johu='중립';
+  if([5,6,7].includes(monthJi)) johu='수';          // 사·오·미: 열기 완화 후보
+  else if([11,0,1].includes(monthJi)) johu='화';    // 해·자·축: 한기 완화 후보
+  const priority=['태약','신약','중화신약'].includes(strength.label)?eokbu:(johu!=='중립'?`${eokbu}·${johu}`:eokbu);
+  return {eokbu,johu,priority,note:'억부/조후를 분리한 v3 후보값. 최종 용신 확정이 아님'};
+}
+
+/* ===== 12운성 ===== */
+const TWELVE_STAGES=['장생','목욕','관대','건록','제왕','쇠','병','사','묘','절','태','양'];
+const CHANGSHENG_BRANCH=[11,6,2,9,2,9,5,0,8,3]; // 갑亥 을午 병寅 정酉 무寅 기酉 경巳 신子 임申 계卯
+function twelveStage(ilgan,ji){
+  const start=CHANGSHENG_BRANCH[ilgan],forward=(ilgan%2===0);
+  const step=forward?mod(ji-start,12):mod(start-ji,12);
+  return TWELVE_STAGES[step];
+}
+function twelveStagesFor(P,ilgan){const out={};for(const k of ['연','월','일','시'])if(P[k])out[k]=twelveStage(ilgan,JIJI.indexOf(P[k].ji));return out;}
+
+/* ===== 운 ===== */
+function annotateLuck(il,p){const g=CHEONGAN.indexOf(p.gan),j=JIJI.indexOf(p.ji);return {gan:p.gan,ji:p.ji,gan_sipseong:sipseong(il,g),ji_sipseong:sipseong(il,JIJI_BONGI[j])};}
+function saeun(y){const idx=mod(y-1984,60);return {gan:CHEONGAN[idx%10],ji:JIJI[idx%12]};}
+function luckMonthAt(dt){const y=dt.getUTCFullYear(),cur=jieAt(dt),yp=yearPillarExact(y,dt.getUTCMonth()+1,dt.getUTCDate(),dt.getUTCHours()+9,dt.getUTCMinutes());const ji=cur.branch,inwol=(CHEONGAN.indexOf(yp.gan)%5)*2+2,gan=mod(inwol+mod(ji-2,12),10);return {gan:CHEONGAN[gan],ji:JIJI[ji],jie:cur};}
+function monthLuckPeriods(year,ilgan){const list=getJieListAround(year).filter(x=>x.dt>=birthUTC(year,1,1,0,0)&&x.dt<birthUTC(year+1,1,1,0,0));const out=[];for(let i=0;i<list.length;i++){const a=list[i],b=list[i+1]||getJieListAround(year+1).find(x=>x.dt>a.dt),mid=new Date((a.dt.getTime()+b.dt.getTime())/2),p=luckMonthAt(mid);out.push({name:a.name,start:fmtKST(a.dt),end:fmtKST(b.dt),...annotateLuck(ilgan,p)});}return out;}
+function saeunTimeline(S,years){const il=CHEONGAN.indexOf(S.ilgan),by=S.birth_solar.year,sy=new Date().getUTCFullYear(),out=[];for(let y=sy;y<sy+years;y++)out.push(Object.assign({year:y,age:y-by},annotateLuck(il,saeun(y))));return out;}
+function luckSnapshot(S){const now=new Date(),il=CHEONGAN.indexOf(S.ilgan),by=S.birth_solar.year,age=now.getUTCFullYear()-by;let ad=null;for(const du of S.daeun)if(du.age_start<=age&&age<=du.age_end){ad=du;break;}return {as_of:now.toISOString().slice(0,10),age,daeun:ad,saeun:annotateLuck(il,saeun(now.getUTCFullYear())),wolun:annotateLuck(il,luckMonthAt(now)),ilun:annotateLuck(il,ilju(now.getUTCFullYear(),now.getUTCMonth()+1,now.getUTCDate()))};}
+
+function calcSaju(by,bm,bd,bh,gender,calMode,bmin,lon,eot,regionName){
+  let Y=by,m=bm,d=bd;const isLunar=calMode!=='solar',isLeap=calMode==='lunarLeap';
+  if(isLunar){const [sy,sm,sd]=jdnToSolar(lunarToJDN(by,bm,bd,isLeap));Y=sy;m=sm;d=sd;}
+  let birthTime=null,effMin=null,calcH=bh===null?12:bh,calcMi=bh===null?0:(bmin||0);
+  if(bh!==null){const ei=effectiveInfo(Y,m,d,bh,calcMi,lon,eot);effMin=ei.minutes;birthTime={hour:bh,minute:calcMi,true_solar:(lon!=null||!!eot),effective_minutes:effMin,effective_hm:`${String(Math.floor(effMin/60)).padStart(2,'0')}:${String(effMin%60).padStart(2,'0')}`,correction_minutes:ei.correction,region:regionName||null,longitude:lon};calcH=Math.floor(effMin/60);calcMi=effMin%60;}
+  const year=yearPillarExact(Y,m,d,calcH,calcMi),month=monthPillarExact(CHEONGAN.indexOf(year.gan),Y,m,d,calcH,calcMi),day=ilju(Y,m,d),hour=hourPillar(CHEONGAN.indexOf(day.gan),effMin);
+  const ilgan=day.gan,il=CHEONGAN.indexOf(ilgan),P={'연':year,'월':month,'일':day,'시':hour};
+  const rawHour=bh===null?null:hourPillar(il,bh*60+(bmin||0));
+  const Praw={'연':year,'월':month,'일':day,'시':rawHour};
+  const rawStrength=strengthIndex(Praw,il);
+  let s8=[year.gan,year.ji,month.gan,month.ji,day.gan,day.ji];if(hour)s8=s8.concat([hour.gan,hour.ji]);
+  const oh={};OHAENG.forEach(n=>oh[n]=0);s8.forEach(ch=>{if(CHEONGAN.includes(ch))oh[OHAENG[elementOfGan(CHEONGAN.indexOf(ch))]]++;else oh[OHAENG[JIJI_OHAENG[JIJI.indexOf(ch)]]]++;});
+  const weakest=OHAENG.reduce((a,b)=>oh[b]<oh[a]?b:a),strongest=OHAENG.reduce((a,b)=>oh[b]>oh[a]?b:a),lacking=OHAENG.filter(n=>oh[n]===0);
+  const sd={};SIP.forEach(k=>sd[k]=0);let tg=[year.gan,month.gan];if(hour)tg.push(hour.gan);[year.ji,month.ji,day.ji].concat(hour?[hour.ji]:[]).forEach(ji=>tg.push(CHEONGAN[JIJI_BONGI[JIJI.indexOf(ji)]]));tg.forEach(t=>sd[sipseong(il,CHEONGAN.indexOf(t))]++);
+  const bdt=birthUTC(Y,m,d,calcH,calcMi),du=daeunExact(CHEONGAN.indexOf(year.gan),gender,month,il,bdt),st=strengthIndex(P,il),ug=usefulGodCandidates(P,il,st),ts12=twelveStagesFor(P,il);
+  return {saju:{year,month,day,hour},raw_time_candidate:{hour:rawHour,strength:rawStrength},saju_8:s8,ilgan,ilgan_strength:st.label,strength_index:st,useful_god_candidates:ug,twelve_stages:ts12,gender,ddi:DDI[JIJI.indexOf(year.ji)],ohaeng_distribution:oh,ohaeng_weakest:weakest,ohaeng_strongest:strongest,ohaeng_lacking:lacking,sipseong_distribution:sd,hidden_stems:Object.fromEntries(Object.entries(P).filter(([,v])=>v).map(([k,v])=>[k,HIDDEN[JIJI.indexOf(v.ji)]])),daeun:du.list,daeun_meta:du,daeun_direction:du.forward?'순행':'역행',sinsal:sinsal(P),sibisinsal:sibisinsal(JIJI.indexOf(year.ji),P),relations:relations(P),birth_time:birthTime,birth_solar:{year:Y,month:m,day:d},calendar_input:calMode};
+}
+
+const SINSAL_M={'천을귀인':'귀인의 도움, 인복.','문창귀인':'학문·시험·문서·총명.','양인살':'강한 추진력·승부욕.','도화살':'매력·인기·이성운.','역마살':'이동·변동·해외·활동성.','화개살':'예술·종교·학문·고독.','백호살':'강렬한 기운.','괴강살':'카리스마·우두머리.','공망':'해당 자리의 비움으로 해석.'};
+const SIBI_M={'지살':'이동·이사·변동','연살':'도화·인기·이성','월살':'위축·정체','망신살':'체면손상·노출','장성살':'우두머리·권위','반안살':'출세·승진·명예','역마살':'이동·해외·변동','육해살':'소모·방해','화개살':'예술·종교·고독','겁살':'빼앗김·강제변동','재살':'관재·구설','천살':'예측불가'};
+function pil(p){return p?p.gan+p.ji:'모름';}function kv(o){return Object.entries(o).map(([k,v])=>`${k} ${v}`).join(', ');}function sipkv(o){const a=Object.entries(o).filter(([,v])=>v).map(([k,v])=>`${k} ${v}`);return a.length?a.join(', '):'표면 분포 약함';}
+function fmtSaju(S){const s=S.saju,bt=S.birth_time;let tl=bt?`- 출생시각: ${String(bt.hour).padStart(2,'0')}:${String(bt.minute).padStart(2,'0')}${bt.true_solar?` → 지역시 보정 ${bt.effective_hm} (${bt.correction_minutes>=0?'+':''}${bt.correction_minutes}분, ${bt.region||'지역 미지정'})`:''}`:'- 출생시각: 모름 (시주 없음)';return `[타고난 사주 계산값 v3]
+- 성별: ${S.gender}, 띠: ${S.ddi}
+${tl}
+- 양력 환산: ${S.birth_solar.year}-${String(S.birth_solar.month).padStart(2,'0')}-${String(S.birth_solar.day).padStart(2,'0')}
+- 사주 8자: ${S.saju_8.join(' ')}
+- 연주 ${pil(s.year)} / 월주 ${pil(s.month)} / 일주 ${pil(s.day)} / 시주 ${pil(s.hour)}
+${bt&&bt.true_solar&&S.raw_time_candidate.hour&&pil(S.raw_time_candidate.hour)!==pil(s.hour)?`- 시간보정 검증: 입력시각 기준 시주 ${pil(S.raw_time_candidate.hour)} / 보정시각 기준 시주 ${pil(s.hour)} (시주 경계 변경)\n- 입력시각 기준 세력지표: ${S.raw_time_candidate.strength.label} (${S.raw_time_candidate.strength.pct.toFixed(1)}%)`:''}
+- 월주 절입 기준: ${s.month.jie} (${s.month.jie_time} KST)
+- 일간: ${S.ilgan} / 신강·신약 후보: ${S.ilgan_strength} (${S.strength_index.pct.toFixed(1)}%)
+  · 판정법: ${S.strength_index.method}
+- 용신 후보: 우선 ${S.useful_god_candidates.priority} / 억부 ${S.useful_god_candidates.eokbu} / 조후 ${S.useful_god_candidates.johu}
+  · 주의: ${S.useful_god_candidates.note}
+- 오행 분포: ${kv(S.ohaeng_distribution)}
+- 가장 강한 오행: ${S.ohaeng_strongest} / 가장 약한 오행: ${S.ohaeng_weakest} / 없는 오행: ${S.ohaeng_lacking.join(', ')||'없음'}
+- 십성 분포: ${sipkv(S.sipseong_distribution)}
+- 지장간: ${Object.entries(S.hidden_stems).map(([k,v])=>`${k}지(${v.join('·')})`).join(', ')}
+- 12운성: ${Object.entries(S.twelve_stages).map(([k,v])=>`${k}지 ${v}`).join(' / ')}`;}
+function fmtDaeun(S){
+  const m=S.daeun_meta;
+  const lines=[`[대운]`,`- 방향: ${S.daeun_direction}`,`- 기산 절기: ${m.anchorName} ${m.anchorTime} KST`,`- 출생~절기 간격: ${m.diffDays.toFixed(2)}일 → 3일=1년 환산 ${m.startDetail} (표시 대운수 ${m.startAge})`];
+  lines.push(...S.daeun.map(d=>`- ${d.age_start}~${d.age_end}세 ${d.gan}${d.ji} (천간 ${d.gan_sipseong}, 지지 ${d.ji_sipseong})`));
+  return lines.join("\n");
+}
+function fmtSinsal(S){
+  const k=Object.keys(S.sinsal); if(!k.length)return '[타고난 신살] 두드러진 항목 없음';
+  return ['[타고난 신살]',...k.map(n=>`- ${n} (${S.sinsal[n].join('·')}): ${SINSAL_M[n]||''}`)].join("\n");
+}
+function fmtSibi(S){
+  return ['[십이신살]',...['연','월','일','시'].filter(p=>S.sibisinsal[p]).map(p=>`- ${p}지: ${S.sibisinsal[p]} (${SIBI_M[S.sibisinsal[p]]||''})`)].join("\n");
+}
+function fmtRel(S){
+  if(!Object.keys(S.relations).length)return '[형충합] 두드러진 합·충·형·파·해 없음';
+  return ['[형충합]',...Object.entries(S.relations).map(([k,v])=>`- ${k}: ${v.join(', ')}`)].join("\n");
+}
+function fmtSaeun(tl){return ['[세운 타임라인]',...tl.map(t=>`- ${t.year}년 (${t.age}세) ${t.gan}${t.ji} (천간 ${t.gan_sipseong}, 지지 ${t.ji_sipseong})`)].join("\n");}
+function fmtWolun(S,year){const il=CHEONGAN.indexOf(S.ilgan),a=monthLuckPeriods(year,il);return [`[${year}년 절입 기준 월운]`,...a.map(t=>`- ${t.start} ~ ${t.end} : ${t.gan}${t.ji} (천간 ${t.gan_sipseong}, 지지 ${t.ji_sipseong})`)].join("\n");}
+function fmtNow(S){const l=luckSnapshot(S),L=x=>`${x.gan}${x.ji} (천간 ${x.gan_sipseong}, 지지 ${x.ji_sipseong})`;const du=l.daeun?`${l.daeun.age_start}~${l.daeun.age_end}세 ${l.daeun.gan}${l.daeun.ji}`:'대운 시작 전';return [`[현재 운 (${l.as_of} 기준)]`,`- 대운: ${du}`,`- 세운: ${L(l.saeun)}`,`- 월운: ${L(l.wolun)}`,`- 일운: ${L(l.ilun)}`].join("\n");}
+const VALIDATION_FIXTURES=[
+  {name:'AQUA WEALTH 참고값',match:S=>S.gender==='여'&&S.birth_solar.year===1986&&S.birth_solar.month===7&&S.ilgan==='기',expected:{pillars:'병인 / 을미 / 기사 / 을해',strength:'중화신강',daeun:'대운수 6, 36세 신묘',useful:'억부 목 / 조후 수'}},
+  {name:'AQUA CHILD 참고값',match:S=>S.gender==='남'&&S.birth_solar.year===2017&&S.birth_solar.month===1&&S.birth_solar.day===18,expected:{pillars:'병신 / 신축 / 을사 / 임오',strength:'태약',daeun:'대운 시작 약 5세',useful:'수',time:'지역시 12:36'}}
+];
+function fmtValidation(S){
+  const f=VALIDATION_FIXTURES.find(x=>x.match(S));if(!f)return '[AQUA 기준 비교] 등록된 참고 사례 아님';
+  const corrected=`${pil(S.saju.year)} / ${pil(S.saju.month)} / ${pil(S.saju.day)} / ${pil(S.saju.hour)}`;
+  const raw=`${pil(S.saju.year)} / ${pil(S.saju.month)} / ${pil(S.saju.day)} / ${pil(S.raw_time_candidate.hour)}`;
+  const exp=f.expected;const correctedMatch=corrected===exp.pillars,rawMatch=raw===exp.pillars;
+  const lines=[`[AQUA 기준 비교 — ${f.name}]`,`- 원국(보정): ${corrected} | 참고 ${exp.pillars} ${correctedMatch?'✓':'△'}`];
+  if(S.raw_time_candidate.hour&&raw!==corrected)lines.push(`- 원국(입력시각): ${raw} | 참고 ${exp.pillars} ${rawMatch?'✓':'△'}`);
+  lines.push(`- 신강·신약(보정): ${S.ilgan_strength} | 참고 ${exp.strength} ${S.ilgan_strength===exp.strength?'✓':'△'}`);
+  if(S.raw_time_candidate.hour&&S.raw_time_candidate.strength.label!==S.ilgan_strength)lines.push(`- 신강·신약(입력시각): ${S.raw_time_candidate.strength.label} (${S.raw_time_candidate.strength.pct.toFixed(1)}%) ${S.raw_time_candidate.strength.label===exp.strength?'✓':''}`);
+  lines.push(`- 대운: 계산 대운수 ${S.daeun_meta.startAge}, 첫 대운 ${S.daeun[0].gan}${S.daeun[0].ji} | 참고 ${exp.daeun}`);
+  lines.push(`- 용신/방향: 계산 우선 ${S.useful_god_candidates.priority} (억부 ${S.useful_god_candidates.eokbu}, 조후 ${S.useful_god_candidates.johu}) | 참고 ${exp.useful}`);
+  if(exp.time&&S.birth_time)lines.push(`- 시간보정: 계산 ${S.birth_time.effective_hm} | 참고 ${exp.time.replace('지역시 ','')}`);
+  if(rawMatch&&!correctedMatch)lines.push('- 참고 리포트는 이 사례에서 입력시각 기준 시주와 일치합니다. 보정 정책을 확정하기 전 두 결과를 모두 보존하세요.');
+  if(correctedMatch&&!rawMatch)lines.push('- 참고 리포트는 이 사례에서 지역시 보정 기준 시주와 일치합니다.');
+  lines.push('- △는 오류 확정이 아니라 보정기준/학파 차이 또는 추가검증 필요 표시입니다.');return lines.join('\n');
+}
+
+function buildGemInput(S){const y=new Date().getUTCFullYear();return ['===== 만세력 엔진 v3 검증 데이터 =====','※ 계산값과 AI 해석을 분리하세요. 신강·신약/용신은 검증용 후보입니다.','',fmtSaju(S),'',fmtValidation(S),'',fmtDaeun(S),'',fmtSinsal(S),'',fmtSibi(S),'',fmtRel(S),'',fmtSaeun(saeunTimeline(S,12)),'',fmtWolun(S,y),'',fmtNow(S)].join('\n');}
+
+
+let lastSaju=null;
+let currentBirthProfileId='';
+let currentQuestionId='';
+let currentCalculationId='';
+let currentSaveFingerprint='';
+
+function setFreeSaveStatus(text,isError=false){
+  const el=document.getElementById('freeSaveStatus');
+  if(!el)return;
+  el.textContent=text||'';
+  el.style.color=isError?'#f1a48d':'#b9b4a7';
+}
+function buildCurrentInputSnapshot(){
+  const reg=document.getElementById('region');
+  const regionOpt=reg.options[reg.selectedIndex];
+  const hu=document.getElementById('hu').checked;
+  return {
+    question:document.getElementById('question').value.trim(),
+    category:document.getElementById('qcat').value,
+    birth:{
+      year:Number(document.getElementById('y').value),
+      month:Number(document.getElementById('m').value),
+      day:Number(document.getElementById('d').value),
+      calendar_type:document.getElementById('cal').value,
+      gender:document.getElementById('g').value,
+      time_unknown:hu,
+      hour:hu?null:Number(document.getElementById('h').value),
+      minute:hu?null:Number(document.getElementById('mi').value),
+      region:hu?null:(regionOpt?.dataset?.name||regionOpt?.textContent?.trim()||null),
+      longitude:hu?null:Number(reg.value)
+    }
+  };
+}
+function makeSaveFingerprint(snapshot,answer){
+  return JSON.stringify({snapshot,answer});
+}
+async function ensureCurrentBirthProfile(user){
+  let id=document.getElementById('savedProfileSelect')?.value||selectedMainProfileId||currentBirthProfileId||'';
+  if(id && familyProfiles.some(p=>p.id===id)){
+    currentBirthProfileId=id;
+    return id;
+  }
+
+  let primary=familyProfiles.find(p=>p.is_primary)||familyProfiles.find(p=>p.relationship==='self')||null;
+  if(primary){
+    currentBirthProfileId=primary.id;
+    selectedMainProfileId=primary.id;
+    return primary.id;
+  }
+
+  // 저장 프로필이 없으면 현재 입력값으로 '내 프로필'을 자동 생성
+  const built=mainFormPayloadForUser(user,null);
+  if(built.error)throw new Error(built.error);
+  await familySupabase.from('birth_profiles').update({is_primary:false}).eq('user_id',user.id);
+  const {data,error}=await familySupabase.from('birth_profiles')
+    .insert({...built.payload,label:'내 프로필',relationship:'self',is_primary:true})
+    .select('*').single();
+  if(error)throw error;
+  currentBirthProfileId=data.id;
+  selectedMainProfileId=data.id;
+  await loadFamilyProfiles();
+  return data.id;
+}
+async function persistFreeResult(){
+  if(!lastSaju)return null;
+
+  const user=await getFamilyUser();
+  if(!user){
+    setFreeSaveStatus('로그인하면 이 질문과 계산 결과가 MY REPORT용 데이터로 저장됩니다.');
+    return null;
+  }
+
+  const answer=document.getElementById('answerText').textContent.trim();
+  const snapshot=buildCurrentInputSnapshot();
+  const fingerprint=makeSaveFingerprint(snapshot,answer);
+
+  // 같은 결과를 연속 클릭했을 때 DB 중복 저장 방지
+  if(currentSaveFingerprint===fingerprint && currentQuestionId && currentCalculationId){
+    setFreeSaveStatus('로그인 계정에 저장됨');
+    return {
+      birth_profile_id:currentBirthProfileId,
+      question_id:currentQuestionId,
+      calculation_id:currentCalculationId
+    };
+  }
+
+  setFreeSaveStatus('계정에 저장하는 중...');
+  try{
+    const birthProfileId=await ensureCurrentBirthProfile(user);
+
+    const calcPayload={
+      user_id:user.id,
+      birth_profile_id:birthProfileId,
+      engine_version:'web-manse-v3-2026-09',
+      input_json:snapshot,
+      calculation_json:lastSaju,
+      raw_time_candidate_json:lastSaju?.raw_time_candidate||lastSaju?.rawTimeCandidate||null,
+      correction_policy:snapshot.birth.time_unknown?'time_unknown':'region_longitude_plus_equation_of_time',
+      calculated_at:new Date().toISOString()
+    };
+    const {data:calcData,error:calcError}=await familySupabase
+      .from('saju_calculations')
+      .insert(calcPayload)
+      .select('id').single();
+    if(calcError)throw calcError;
+
+    const questionPayload={
+      user_id:user.id,
+      birth_profile_id:birthProfileId,
+      category:snapshot.category,
+      question_text:snapshot.question,
+      free_answer:answer,
+      status:'answered'
+    };
+    const {data:qData,error:qError}=await familySupabase
+      .from('questions')
+      .insert(questionPayload)
+      .select('id').single();
+    if(qError){
+      // 질문 저장 실패 시 고아 계산행 제거 시도
+      await familySupabase.from('saju_calculations').delete().eq('id',calcData.id).eq('user_id',user.id);
+      throw qError;
+    }
+
+    currentBirthProfileId=birthProfileId;
+    currentCalculationId=calcData.id;
+    currentQuestionId=qData.id;
+    currentSaveFingerprint=fingerprint;
+
+    window.__freeSession={
+      birth_profile_id:birthProfileId,
+      question_id:qData.id,
+      calculation_id:calcData.id
+    };
+    setFreeSaveStatus('로그인 계정에 저장됨 · 결제 시 이 분석값을 그대로 사용합니다.');
+    return window.__freeSession;
+  }catch(e){
+    console.error('무료 결과 저장 실패',e);
+    setFreeSaveStatus('답변은 생성됐지만 계정 저장에 실패했습니다: '+(e?.message||'알 수 없는 오류'),true);
+    return null;
+  }
+}
+
+async function freeAnswer(){
+  const err=document.getElementById('err');
+  err.textContent='';
+  setFreeSaveStatus('');
+
+  const q=document.getElementById('question').value.trim();
+  const y=+document.getElementById('y').value,
+        m=+document.getElementById('m').value,
+        d=+document.getElementById('d').value;
+  const hu=document.getElementById('hu').checked;
+  const h=hu?null:(document.getElementById('h').value===''?null:+document.getElementById('h').value);
+  const mi=hu?0:(document.getElementById('mi').value===''?0:+document.getElementById('mi').value);
+
+  if(!q){err.textContent='궁금한 질문을 하나 적어 주세요.';return}
+  if(!y){err.textContent='생년(연도)을 입력해 주세요.';document.getElementById('y').focus();return}
+  if(!m){err.textContent='태어난 월을 입력해 주세요.';document.getElementById('m').focus();return}
+  if(!d){err.textContent='태어난 일을 입력해 주세요.';document.getElementById('d').focus();return}
+  if(y<1900||y>2100){err.textContent='생년은 1900~2100년 사이로 입력해 주세요.';document.getElementById('y').focus();return}
+  if(m<1||m>12){err.textContent='월은 1~12 사이로 입력해 주세요.';document.getElementById('m').focus();return}
+  if(d<1||d>31){err.textContent='일은 1~31 사이로 입력해 주세요.';document.getElementById('d').focus();return}
+  if(!hu && h===null){err.textContent='태어난 시간을 입력하거나 시간을 모릅니다에 체크해 주세요.';document.getElementById('h').focus();return}
+
+  const reg=document.getElementById('region'),
+        lon=hu?null:+reg.value,
+        name=hu?null:reg.options[reg.selectedIndex].dataset.name;
+
+  try{
+    lastSaju=calcSaju(
+      y,m,d,h,
+      document.getElementById('g').value,
+      document.getElementById('cal').value,
+      mi,lon,!hu,name
+    );
+    window.__sajuPayload=lastSaju;
+    const cat=document.getElementById('qcat').value;
+    document.getElementById('qShown').textContent='“'+q+'”';
+    document.getElementById('answerText').textContent=makeDemoAnswer(lastSaju,cat);
+    document.getElementById('preview').style.display='block';
+    document.getElementById('preview').scrollIntoView({behavior:'smooth',block:'start'});
+    await persistFreeResult();
+  }catch(e){
+    console.error(e);
+    err.textContent='입력값을 다시 확인해 주세요. '+e.message;
+  }
+}
+
+function makeDemoAnswer(S,cat){
+  const weak=S.ohaeng_weakest, strong=S.ohaeng_strongest;
+  const map={
+    '재물·사업':`지금은 새로운 일을 무리하게 늘리기보다, 이미 잘하고 있는 일을 돈이 되는 형태로 정리하는 데 집중해보세요.`,
+    '직업·이직':`당장 옮기기부터 결정하기보다, 내가 잘하는 일을 더 인정받을 수 있는 역할과 환경을 먼저 비교해보는 편이 좋습니다.`,
+    '연애·결혼':`지금은 상대의 마음을 맞히려 하기보다, 내가 편안하게 오래 만날 수 있는 관계의 기준부터 분명히 해보세요.`,
+    '인간관계':`사람을 더 많이 만나는 것보다, 나를 소모시키는 관계와 오래 가져갈 관계를 구분하는 일이 먼저입니다.`,
+    '자녀·교육':`더 많이 시키기보다 아이가 집중이 살아나는 방식과 지치는 순간을 먼저 찾으면 방향을 잡기가 쉬워집니다.`,
+    '올해 흐름':`올해는 한 번에 큰 결정을 내리기보다, 잘 풀리는 시기와 조심할 시기를 나눠 움직이는 편이 더 안정적입니다.`,
+    '기타':`지금 질문은 서두른 결론보다, 현재 가진 강점을 어디에 쓰고 무엇을 줄일지부터 정리하면 답이 더 선명해집니다.`
+  }; return map[cat]||map['기타'];
+}
+
+function easyElement(el){return {목:'성장·관계',화:'표현·활동',토:'현실·관리',금:'기준·정리',수:'회복·이해'}[el]||el}
+function strengthSentence(label){
+  if(['태강','신강','중화신강'].includes(label)) return '스스로 밀고 가는 힘이 비교적 강한 편이라, 방향만 맞으면 실행 속도가 붙기 쉽습니다.';
+  if(['태약','신약','중화신약'].includes(label)) return '혼자 오래 버티기보다 환경과 사람의 영향을 많이 받는 편이라, 회복과 지원 조건을 잘 만드는 것이 중요합니다.';
+  return '밀어붙이는 힘과 받아들이는 힘이 비교적 균형을 이루는 편이라, 상황에 맞춰 속도를 조절하는 것이 강점입니다.';
+}
+function currentDaeun(S){const n=luckSnapshot(S);return n.daeun||S.daeun[0]}
+function safeText(v){return String(v??'').replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}
+function reportModules(S,cat,q){
+  const now=luckSnapshot(S), du=currentDaeun(S), oh=S.ohaeng_distribution, max=S.ohaeng_strongest, min=S.ohaeng_weakest;
+  const lack=S.ohaeng_lacking.length?S.ohaeng_lacking.join('·'):'특별히 비어 있는 기운 없음';
+  const age=now.age, year=new Date().getFullYear();
+  const rel=Object.keys(S.relations).length?'관계 속에서 맞춰야 할 지점과 변화 신호가 함께 나타나는 구조입니다.':'크게 부딪히는 관계 신호보다 기본 성향의 균형을 먼저 보는 편이 좋습니다.';
+  const sins=Object.keys(S.sinsal); const sinTxt=sins.length?`${sins.slice(0,2).join('·')} 같은 보조 신호가 잡히지만, 이것만으로 성격이나 사건을 단정하지 않습니다.`:'보조 신호보다 기본 사주 구조와 현재 흐름을 우선해서 보는 편이 좋습니다.';
+  const commonWhy=`기본 구조에서 ${max} 기운이 상대적으로 두드러지고 ${min} 기운이 약하게 계산된 점을 참고했습니다.`;
+  const sections=[
+    ['나의 기본 구조',[
+      ['한눈에 보는 나','당신은 한 가지 성격으로만 설명되기보다, 상황에 따라 강점이 달라지는 타입으로 볼 수 있습니다. 특히 '+easyElement(max)+' 쪽 힘이 잘 드러납니다.',commonWhy],
+      ['나를 움직이는 중심','중요한 선택에서는 겉으로 보이는 분위기보다 내가 납득할 수 있는 기준이 있어야 오래 움직이는 편입니다.','일간과 전체 기운의 균형을 쉬운 말로 풀어낸 항목입니다.'],
+      ['에너지의 균형',strengthSentence(S.ilgan_strength),`현재 계산은 ${S.ilgan_strength} 후보로 나옵니다. 최종 판정은 추가 검증 대상입니다.`],
+      ['강하게 드러나는 힘',`${easyElement(max)}과 관련된 능력은 생활에서 비교적 자연스럽게 꺼내 쓰기 쉽습니다. 잘하는 것을 더 선명하게 만드는 쪽이 효율적입니다.`,commonWhy],
+      ['보완이 필요한 힘',`${easyElement(min)} 쪽은 의식적으로 시간을 확보하거나 습관을 만들어 보완하면 전체 균형이 좋아질 수 있습니다.`,`가장 약한 기운은 ${min}, 비어 있는 기운은 ${lack}로 계산됐습니다.`],
+      ['겉모습과 속마음','겉으로는 빠르게 판단하는 것처럼 보여도, 실제로는 내 안에서 충분히 정리된 뒤에야 마음이 편해지는 순간이 있습니다.','천간·지지의 역할을 일반적인 생활 언어로 바꿔 설명한 부분입니다.'],
+      ['숨은 욕구','겉으로 드러나는 행동만 보지 말고, 그 행동 뒤에 안정·인정·자율성 중 무엇이 필요한지를 함께 보는 것이 중요합니다.','지장간 정보는 최종 리포트에서 보다 세밀하게 연결할 예정입니다.'],
+      ['관계에서 반복되는 패턴',rel,'합·충·형·파·해는 관계 변화의 참고 신호로만 사용합니다.'],
+      ['보조 성향 신호',sinTxt,'신살은 핵심 판정보다 보조 자료로만 사용합니다.'],
+      ['기본 구조 요약',`당신에게 중요한 것은 부족한 부분을 억지로 채우는 것보다, 잘되는 방식은 키우고 지치는 조건은 줄이는 것입니다.`,`현재 오행 분포: 목 ${oh.목}, 화 ${oh.화}, 토 ${oh.토}, 금 ${oh.금}, 수 ${oh.수}.`]
+    ]],
+    ['성격·감정·관계',[
+      ['결정하는 방식','급하게 정해야 할 때보다 비교할 기준과 마감이 명확할 때 결정력이 더 좋아질 수 있습니다.','기본 성향과 현재 힘의 균형을 함께 반영한 생활 해석입니다.'],
+      ['스트레스가 쌓일 때','해야 할 일과 사람의 요구가 동시에 몰리면 평소보다 예민해지거나, 반대로 아무것도 하기 싫어질 수 있습니다.','강점이 과하게 사용될 때의 반대 반응을 참고했습니다.'],
+      ['회복이 빠른 방법',`${easyElement(min)}과 연결되는 활동을 일부러 확보해보세요. 쉬는 시간, 정리, 대화, 산책처럼 부담이 적은 루틴이 좋습니다.`,`약한 기운을 생활 루틴으로 번역한 참고 제안입니다.`],
+      ['칭찬에 반응하는 방식','막연한 칭찬보다 무엇을 잘했는지 구체적으로 알아봐 주는 말에 더 힘을 얻을 가능성이 큽니다.','자기 기준과 현실적 피드백을 연결한 해석입니다.'],
+      ['갈등이 생길 때','감정이 올라온 순간 결론을 내리기보다, 쟁점을 하나씩 나눠 말하면 관계 손실을 줄이기 쉽습니다.','관계 신호는 사건 예언이 아니라 대응 전략으로 사용했습니다.'],
+      ['사람을 보는 기준','말이 화려한 사람보다 약속과 행동이 오래 일치하는 사람을 기준으로 보면 관계 선택이 편해질 수 있습니다.','관계의 안정성을 높이는 실용적 기준입니다.'],
+      ['가까운 관계에서의 모습','밖에서 잘 참고 맞추는 날일수록 가까운 사람 앞에서는 더 솔직하거나 예민하게 반응할 수 있습니다.','외부 역할과 사적 관계의 차이를 고려했습니다.'],
+      ['혼자 있을 때 필요한 것','아무것도 하지 않는 시간보다 머릿속을 정리할 수 있는 가벼운 활동이 회복에 도움이 될 수 있습니다.','회복 자원을 생활 언어로 바꾼 제안입니다.'],
+      ['관계에서 주의할 점','상대의 요구를 계속 받아주다가 한 번에 끊기보다, 작은 선을 일찍 설명하는 연습이 필요합니다.','과부하를 예방하는 경계 설정 제안입니다.'],
+      ['관계 종합 조언','좋은 관계는 나를 계속 설득해야 유지되는 관계가 아니라, 설명해도 안전한 관계에 가깝습니다.','명리 해석을 현실적인 관계 기준으로 바꾼 문장입니다.']
+    ]],
+    ['돈·일·커리어',[
+      ['돈을 바라보는 태도','큰 한 번보다 반복해서 들어오는 구조를 만들 때 마음이 더 안정될 가능성이 큽니다.','재물 해석은 투자 수익을 보장하지 않으며 행동 성향 중심으로 봅니다.'],
+      ['돈 버는 방식',`이미 가진 ${easyElement(max)} 강점을 서비스·상품·성과처럼 눈에 보이는 형태로 바꾸는 전략이 잘 맞습니다.`,commonWhy],
+      ['수입을 늘릴 때','새 일을 계속 추가하기보다 잘되는 일을 표준화하고 반복 가능한 판매 과정으로 만드는 것이 먼저입니다.','무료 한 줄 답변과 상세 전략이 연결되도록 구성했습니다.'],
+      ['돈이 새기 쉬운 지점','스트레스가 클 때 편의를 위해 비용을 쓰거나, 여러 일을 동시에 벌이면서 고정비가 늘어나는 패턴을 점검해보세요.','재정 조언이 아니라 지출 점검용 질문입니다.'],
+      ['직장 생활','업무 범위와 평가 기준이 분명한 환경에서 능력을 보여주기 쉽습니다. 애매한 책임만 계속 늘어나는 구조는 피로를 키울 수 있습니다.','기준과 역할 명확성을 중심으로 해석했습니다.'],
+      ['사업·프리랜서','내가 잘하는 일을 다른 사람이 이해하기 쉬운 상품명·가격·과정으로 정리할수록 강점이 수익과 연결되기 쉽습니다.','사업 결과를 보장하지 않는 실무 방향 제안입니다.'],
+      ['이직 판단','지금 직장이 싫다는 이유 하나보다, 다음 자리에서 얻을 역할·보상·성장 중 최소 두 가지가 선명한지 확인하세요.','운세 대신 의사결정 체크리스트로 번역했습니다.'],
+      ['협업과 고객','기대 범위와 마감 기준을 초반에 문서로 맞추는 것이 관계 소모를 줄이는 데 도움이 됩니다.','관계 패턴을 업무 환경에 적용한 제안입니다.'],
+      ['성장 전략',`약한 ${easyElement(min)} 영역을 무리하게 주력으로 만들기보다, 도구·파트너·시스템으로 보완하는 방식이 효율적일 수 있습니다.`,commonWhy],
+      ['돈·일 종합','지금의 핵심은 새로운 가능성을 계속 찾는 것보다, 이미 증명된 강점을 반복 가능한 수익 구조로 바꾸는 것입니다.','질문의 결론을 행동 문장으로 요약했습니다.']
+    ]],
+    ['현재와 앞으로의 흐름',[
+      ['현재 10년 흐름',`현재 ${du.age_start}~${du.age_end}세 구간은 ${easyElement(JIJI_OHAENG[JIJI.indexOf(du.ji)]===0?'목':JIJI_OHAENG[JIJI.indexOf(du.ji)]===1?'화':JIJI_OHAENG[JIJI.indexOf(du.ji)]===2?'토':JIJI_OHAENG[JIJI.indexOf(du.ji)]===3?'금':'수')} 성격의 과제가 함께 들어오는 구간으로 계산됩니다. 중요한 건 이름보다 실제 생활에서 역할과 선택이 어떻게 바뀌는지입니다.`,`내부 계산상 현재 대운은 ${du.gan}${du.ji}입니다. 사용자 화면에서는 용어를 최소화합니다.`],
+      ['올해의 핵심',`${year}년은 한꺼번에 모든 것을 바꾸기보다, 우선순위를 정하고 결과가 나는 곳에 힘을 모으는 방식이 좋습니다.`,`올해 흐름은 ${now.saeun.gan}${now.saeun.ji}로 계산되며 최종 AI 버전에서 더 정밀하게 해석합니다.`],
+      ['올해 일·돈','기회가 보여도 고정비와 반복 가능성을 함께 확인하세요. 매출보다 남는 구조를 먼저 보는 것이 안전합니다.','재정적 결과를 보장하지 않는 참고 전략입니다.'],
+      ['올해 관계','새로운 인연의 수보다 기존 관계에서 역할과 기대를 정리하는 것이 체감 변화를 크게 만들 수 있습니다.','관계의 질을 높이는 방향으로 번역했습니다.'],
+      ['움직이기 좋은 때','실제 서비스에서는 12개월을 절입 기준으로 나눠, 추진·정리·휴식에 상대적으로 적합한 달을 각각 표시합니다.','현재 월운 계산 엔진은 이미 12개월 구간을 산출합니다.'],
+      ['조심해서 볼 때','변화가 많은 달은 나쁜 달로 단정하지 않고, 계약·지출·관계 결정을 한 번 더 확인해야 하는 달로 안내합니다.','공포형 운세 표현을 피하는 원칙입니다.'],
+      ['다음 3년','한 해씩 따로 예언하기보다, 3년 동안 무엇을 시작하고 무엇을 정리할지 연결해서 보는 방식으로 구성하는 것이 좋습니다.','세운 타임라인을 전략형 리포트로 변환하는 자리입니다.'],
+      ['다음 10년','장기 흐름은 직업·관계·생활 변화의 큰 방향을 보는 참고 지도처럼 사용하세요. 실제 선택은 현실 조건과 함께 판단해야 합니다.','대운을 미래 확정이 아닌 장기 참고로 사용합니다.'],
+      ['변화에 대응하는 법','좋은 흐름에서는 확장 조건을 확인하고, 부담이 큰 흐름에서는 현금·시간·관계 여유를 확보하는 식으로 대응합니다.','운의 좋고 나쁨보다 대응 전략을 우선합니다.'],
+      ['시기 종합','운이 좋다는 말보다, 지금 무엇을 키우고 무엇을 줄일지가 분명해야 실제로 도움이 됩니다.','최종 리포트의 시기 파트 원칙입니다.']
+    ]],
+    ['나의 질문과 실행 전략',[
+      ['내 질문',`“${q}”`,`사용자가 직접 입력한 질문입니다.`],
+      ['한 줄 결론',makeDemoAnswer(S,cat),'전문용어 없이 행동 방향만 먼저 보여줍니다.'],
+      ['왜 이런 답인가',`현재 구조에서는 ${easyElement(max)} 강점을 활용하는 쪽이 자연스럽고, ${easyElement(min)} 쪽 부담을 줄이는 방식이 안정적이기 때문입니다.`,commonWhy],
+      ['지금 바로 할 일','이번 주 안에 하고 있는 일·관계·목표를 세 칸으로 나눠 “늘릴 것 / 유지할 것 / 줄일 것”을 하나씩 적어보세요.','운세를 실제 행동으로 연결하는 테스트 모듈입니다.'],
+      ['하지 말아야 할 일','불안해서 새로운 선택지를 계속 추가하는 행동은 잠시 멈추고, 이미 결정한 것의 결과를 확인할 시간을 확보하세요.','과도한 확장을 예방하는 제안입니다.'],
+      ['1개월 계획','한 가지 핵심 목표를 정하고, 매주 같은 요일에 진행 상황을 확인하는 짧은 루틴을 만들어보세요.','짧은 실행 사이클을 제안합니다.'],
+      ['3개월 계획','잘되는 방식과 반복적으로 막히는 방식을 기록해, 사람·시간·돈을 어디에 더 쓸지 결정하세요.','중기 계획을 데이터 기반 행동으로 번역했습니다.'],
+      ['1년 계획','올해 말에는 “무엇을 더 많이 했는가”보다 “무엇이 반복 가능한 구조가 되었는가”를 기준으로 성과를 평가해보세요.','장기 전략을 결과 구조 중심으로 제안합니다.'],
+      ['다시 질문하면 좋은 것',`“${q}” 다음에는 “언제 움직이는 게 좋은가?”, “무엇을 먼저 줄여야 하는가?”처럼 한 단계 더 구체적으로 질문하면 도움이 됩니다.`,`추가 질문 상품과 자연스럽게 이어지는 모듈입니다.`],
+      ['최종 메시지','당신의 사주는 정답을 대신 정하는 도구가 아니라, 나에게 맞는 선택 방식을 조금 더 선명하게 보는 참고 지도처럼 사용하는 것이 좋습니다.','전체 리포트의 마무리 원칙입니다.']
+    ]]
+  ];
+  return sections;
+}
+function generateFullReport(){
+  if(!lastSaju){document.getElementById('err').textContent='먼저 무료 한 줄 답변을 생성해 주세요.';return}
+  const q=document.getElementById('question').value.trim(), cat=document.getElementById('qcat').value, S=lastSaju;
+  const full=document.getElementById('fullReport'), parts=reportModules(S,cat,q), now=luckSnapshot(S), du=currentDaeun(S);
+  document.getElementById('reportTitle').textContent='당신의 질문에서 시작하는 개인 맞춤 심층 리포트';
+  document.getElementById('reportIntro').textContent='어려운 사주 용어보다 실제 생활에서 이해하기 쉬운 말로, 성향·관계·돈과 일·현재 흐름·실행 전략까지 50개 항목으로 풀어드립니다.';
+  const summaryStrength={목:'사람과 기회를 연결하며 키우는 힘',화:'빠르게 표현하고 실행하는 힘',토:'현실적으로 정리하고 끝까지 완성하는 힘',금:'기준을 세우고 정확하게 다듬는 힘',수:'배우고 이해하며 흐름을 읽는 힘'};
+  const summaryNeed={목:'새로운 가능성을 키우는 여유',화:'생각을 행동으로 옮기는 추진력',토:'우선순위를 정하고 꾸준히 마무리하는 힘',금:'기준을 세우고 불필요한 것을 정리하는 힘',수:'충분히 쉬고 생각을 정리하는 시간'};
+  const flowText=`${du.age_start}~${du.age_end}세에는 새로운 것을 무작정 늘리기보다, 지금까지 쌓은 경험을 실제 결과로 연결하는 흐름을 살펴보는 시기입니다.`;
+  document.getElementById('reportSummary').innerHTML=`
+    <div class="sumBox"><small>가장 궁금한 것</small><b>${safeText(cat)}</b></div>
+    <div class="sumBox"><small>내가 잘 활용할 수 있는 힘</small><b>${safeText(summaryStrength[S.ohaeng_strongest]||easyElement(S.ohaeng_strongest))}</b></div>
+    <div class="sumBox"><small>지금 더 필요한 것</small><b>${safeText(summaryNeed[S.ohaeng_weakest]||easyElement(S.ohaeng_weakest))}</b></div>
+    <div class="sumBox"><small>지금의 큰 흐름</small><b>${safeText(flowText)}</b></div>`;
+  document.getElementById('reportToc').innerHTML=parts.map((p,i)=>`<div class="tocItem">PART ${i+1}. ${safeText(p[0])}</div>`).join('');
+  let idx=1;
+  document.getElementById('reportParts').innerHTML=parts.map((p,pi)=>`<article class="reportPart"><div class="partHead"><div class="partNo">${String(pi+1).padStart(2,'0')}</div><h3>${safeText(p[0])}</h3></div><div class="reportItems">${p[1].map(item=>`<div class="reportItem"><div class="idx">${String(idx++).padStart(2,'0')}</div><h4>${safeText(item[0])}</h4><p>${safeText(item[1])}</p><div class="why">${safeText(item[2])}</div></div>`).join('')}</div></article>`).join('');
+  full.style.display='block'; full.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function saveReportPdf(){
+  if(!lastSaju){alert('먼저 상세 리포트를 생성해 주세요.');return;}
+  const oldTitle=document.title;
+  const y=document.getElementById('y').value||'';
+  const m=document.getElementById('m').value||'';
+  const d=document.getElementById('d').value||'';
+  document.title=`개인맞춤_사주리포트_${y}${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`;
+  window.print();
+  setTimeout(()=>{document.title=oldTitle},500);
+}
+
+let checkoutProduct=null;
+function openProduct(name,price){
+  checkoutProduct={name,price};
+  document.getElementById('modalTitle').textContent=name;
+  document.getElementById('modalText').innerHTML='<b>'+price+'</b><br>결제 후 입력한 출생 정보와 질문을 바탕으로 개인 맞춤 심층 리포트가 생성되고 MY REPORT에 저장됩니다.';
+  document.getElementById('modalBack').style.display='flex'
+}
+async function startCheckout(name,price){
+  const user=await getFamilyUser();
+  if(!user){
+    try{
+      localStorage.setItem('saju_pending_checkout',JSON.stringify({
+        name,price,
+        question:document.getElementById('question')?.value||'',
+        category:document.getElementById('qcat')?.value||''
+      }));
+    }catch(e){}
+    showToast('결제 전에 로그인이 필요합니다. 로그인 후 이어서 진행할 수 있어요.');
+    setTimeout(()=>{window.top.location.href='/login'},700);
+    return;
+  }
+
+  if(lastSaju && (!currentQuestionId || !currentCalculationId)){
+    const saved=await persistFreeResult();
+    if(!saved){
+      showToast('분석 저장이 완료되지 않아 결제를 시작할 수 없습니다.');
+      return;
+    }
+  }
+
+  checkoutProduct={
+    name,price,
+    birth_profile_id:currentBirthProfileId||null,
+    question_id:currentQuestionId||null,
+    calculation_id:currentCalculationId||null
+  };
+  openProduct(name,price);
+}
+async function confirmCheckout(){
+  if(!checkoutProduct)return;
+  const user=await getFamilyUser();
+  if(!user){
+    closeModal();
+    window.top.location.href='/login';
+    return;
+  }
+
+  // 실제 운영 배포 시 서버 주문 생성 API → PortOne/Toss 결제로 연결
+  const configured=window.SAJU_CONFIG&&window.SAJU_CONFIG.checkoutUrl;
+  if(configured){
+    const params=new URLSearchParams({
+      product:checkoutProduct.name,
+      birth_profile_id:checkoutProduct.birth_profile_id||'',
+      question_id:checkoutProduct.question_id||'',
+      calculation_id:checkoutProduct.calculation_id||''
+    });
+    location.href=window.SAJU_CONFIG.checkoutUrl+'?'+params.toString();
+    return;
+  }
+  closeModal();
+  showToast('질문·계산 저장까지 완료됐습니다. 다음 단계에서 PG 결제를 연결하면 바로 이어집니다.');
+}function closeModal(){document.getElementById('modalBack').style.display='none'}document.getElementById('hu').addEventListener('change',e=>{document.getElementById('h').disabled=e.target.checked;document.getElementById('mi').disabled=e.target.checked;document.getElementById('region').disabled=e.target.checked});
+
+const REPORT_PREVIEWS=[
+  {src:'/report-preview/page-01.png',title:'도입 · 리포트 시작',desc:'첫 페이지와 전체 분위기를 먼저 보여줍니다.'},
+  {src:'/report-preview/page-02.png',title:'핵심 성향',desc:'나는 어떤 사람인지 본격적으로 읽는 파트입니다.'},
+  {src:'/report-preview/page-03.png',title:'재물 · 사업',desc:'돈이 들어오고 새는 방식까지 이어지는 분석입니다.'},
+  {src:'/report-preview/page-04.png',title:'관계 · 가족',desc:'감정 흐름과 가까운 사람과의 거리감을 다룹니다.'},
+  {src:'/report-preview/page-05.png',title:'흐름 · 실행전략',desc:'현재 흐름과 앞으로 무엇을 바꿀지 연결합니다.'}
+];
+let currentPreviewIndex=0;
+function buildPreviewThumbs(){
+  const wrap=document.getElementById('previewThumbs');
+  if(!wrap || wrap.dataset.ready==='1') return;
+  wrap.innerHTML=REPORT_PREVIEWS.map((item,idx)=>`<button type="button" onclick="openPreviewModal(${idx})" aria-label="${idx+1}번 미리보기"><img src="${item.src}" alt="썸네일 ${idx+1}"></button>`).join('');
+  wrap.dataset.ready='1';
+}
+function renderPreviewModal(){
+  const item=REPORT_PREVIEWS[currentPreviewIndex];
+  const img=document.getElementById('previewModalImage');
+  const title=document.getElementById('previewModalTitle');
+  const desc=document.getElementById('previewModalDesc');
+  const page=document.getElementById('previewModalPage');
+  if(img) {img.src=item.src; img.alt=item.title;}
+  if(title) title.textContent=item.title;
+  if(desc) desc.textContent=item.desc;
+  if(page) page.textContent=String(currentPreviewIndex+1).padStart(2,'0')+' / 05';
+  const buttons=document.querySelectorAll('#previewThumbs button');
+  buttons.forEach((btn,idx)=>btn.classList.toggle('active', idx===currentPreviewIndex));
+}
+function openPreviewModal(index=0){
+  buildPreviewThumbs();
+  currentPreviewIndex=Math.max(0,Math.min(REPORT_PREVIEWS.length-1,index));
+  renderPreviewModal();
+  const el=document.getElementById('previewModalBack');
+  if(el) el.style.display='flex';
+  document.body.style.overflow='hidden';
+}
+function closePreviewModal(){
+  const el=document.getElementById('previewModalBack');
+  if(el) el.style.display='none';
+  document.body.style.overflow='';
+}
+function changePreview(step){
+  currentPreviewIndex=(currentPreviewIndex+step+REPORT_PREVIEWS.length)%REPORT_PREVIEWS.length;
+  renderPreviewModal();
+}
+function scrollToReportProducts(){
+  const target=document.getElementById('reports');
+  if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
+}
+document.addEventListener('keydown',function(event){
+  const visible=document.getElementById('previewModalBack') && document.getElementById('previewModalBack').style.display==='flex';
+  if(!visible) return;
+  if(event.key==='Escape') closePreviewModal();
+  if(event.key==='ArrowRight') changePreview(1);
+  if(event.key==='ArrowLeft') changePreview(-1);
+});
+
+</script>
+<div class="toast" id="toast"></div>
+<script>
+window.SAJU_CONFIG = {
+  checkoutUrl: "",      // 예: "/api/checkout"
+  reportApiUrl: "",     // 예: "/api/report"
+  loginUrl: ""          // 예: "/login"
+};
+function showToast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer=setTimeout(()=>el.classList.remove('show'),3200);
+}
+</script>
+
+
+<script>
+function syncAuthButton(){
+  const btn=document.getElementById('authBtn');
+  if(!btn)return;
+  const logged=localStorage.getItem('saju_logged_in')==='1';
+  const name=localStorage.getItem('saju_user_name');
+  const email=localStorage.getItem('saju_user_email');
+  if(logged){
+    const label=name || (email?email.split('@')[0]:'회원');
+    btn.textContent=label+' · 로그아웃';
+    btn.title='클릭하면 로그아웃합니다.';
+  }else{
+    btn.textContent='로그인';
+    btn.title='로그인 / 회원가입';
+  }
+}
+function handleAuthButton(){
+  if(localStorage.getItem('saju_logged_in')==='1') window.top.location.href='/logout';
+  else window.top.location.href='/login';
+}
+window.addEventListener('storage',syncAuthButton);
+document.addEventListener('DOMContentLoaded',syncAuthButton);
+setTimeout(syncAuthButton,0);
+</script>
+
+
+<script>
+const FAMILY_SUPABASE_URL='https://scmskjvhejnchhyufyfa.supabase.co';
+const FAMILY_SUPABASE_KEY='sb_publishable__aKUm_yLUXA1cS18gFuumA_J9lArQcD';
+const familySupabase=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(FAMILY_SUPABASE_URL,FAMILY_SUPABASE_KEY):null;
+let familyProfiles=[];
+
+function familyRelationshipText(v){return ({self:'본인',spouse:'배우자',child:'자녀',parent:'부모',family:'가족',other:'기타'})[v]||'가족'}
+function familyGenderText(v){return ({female:'여성',male:'남성',other:'기타',unknown:'미지정'})[v]||'미지정'}
+function familyDateText(p){
+  const cal=p.calendar_type==='lunar'?'음력':'양력';
+  const t=p.time_unknown?'시간 모름':(p.birth_time?String(p.birth_time).slice(0,5):'시간 미입력');
+  return `${cal} ${p.birth_date||'생년월일 미입력'} · ${t}`;
+}
+async function getFamilyUser(){
+  if(!familySupabase) return null;
+  const {data}=await familySupabase.auth.getSession();
+  return data&&data.session?data.session.user:null;
+}
+async function loadFamilyProfiles(){
+  const wrap=document.getElementById('people'); if(!wrap)return;
+  const user=await getFamilyUser();
+  if(!user){
+    familyProfiles=[];
+    syncSavedProfileSelect();
+    updateProfileQuickStatus(null);
+    wrap.innerHTML=`<div class="personEmpty">로그인하면 내 가족 프로필을 저장하고 다시 불러올 수 있습니다.<br><button class="ghost" style="margin-top:8px" onclick="window.top.location.href='/login'">로그인하기</button></div>`;
+    return;
+  }
+  const {data,error}=await familySupabase.from('birth_profiles').select('*').eq('user_id',user.id).order('is_primary',{ascending:false}).order('created_at',{ascending:true});
+  if(error){console.error(error);wrap.innerHTML='<div class="personEmpty">프로필을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>';return;}
+  familyProfiles=data||[];
+  syncSavedProfileSelect();
+  updateProfileQuickStatus(user);
+  if(!familyProfiles.length){wrap.innerHTML=`<div class="personEmpty"><b>아직 등록된 프로필이 없습니다.</b><br>먼저 내 프로필을 등록하면 다음부터 생년월일을 다시 입력하지 않아도 됩니다.<br><button class="ghost" style="margin-top:8px" onclick="openFamilyModal(null,'self')">내 프로필 등록</button></div>`;return;}
+  autoLoadPrimaryProfileOnce();
+  wrap.innerHTML=familyProfiles.map(p=>`<div class="person"><div class="avatar">${escapeFamily((p.label||'가').slice(0,1))}</div><div><b>${escapeFamily(p.label||familyRelationshipText(p.relationship))}${p.is_primary?' · 대표':''}</b><small>${escapeFamily(familyDateText(p))}${p.birth_region?' · '+escapeFamily(p.birth_region):''}</small></div><div class="personActions"><button class="ghost" onclick="loadProfileByIdToMain('${p.id}',true)">불러오기</button><button class="ghost" onclick="openFamilyModal('${p.id}')">보기/수정</button></div></div>`).join('');
+}
+function escapeFamily(v){return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]))}
+
+let selectedMainProfileId='';
+let primaryAutoLoaded=false;
+
+function updateProfileQuickStatus(user){
+  const el=document.getElementById('profileQuickStatus');
+  if(!el)return;
+  if(!user){el.textContent='로그인하면 프로필을 저장할 수 있어요.';return;}
+  el.textContent=familyProfiles.length?`${familyProfiles.length}개 프로필 저장됨`:'아직 저장된 프로필이 없어요.';
+}
+function syncSavedProfileSelect(){
+  const sel=document.getElementById('savedProfileSelect');
+  if(!sel)return;
+  const keep=selectedMainProfileId||sel.value||'';
+  sel.innerHTML='<option value="">저장된 프로필 선택</option>'+familyProfiles.map(p=>`<option value="${escapeFamily(p.id)}">${escapeFamily(p.label||familyRelationshipText(p.relationship))}${p.is_primary?' · 대표':''}</option>`).join('');
+  if(keep && familyProfiles.some(p=>p.id===keep)) sel.value=keep;
+  else if(familyProfiles.find(p=>p.is_primary)) sel.value=familyProfiles.find(p=>p.is_primary).id;
+}
+function showProfileQuickNotice(msg){
+  const el=document.getElementById('profileQuickNotice');
+  if(!el)return;
+  el.textContent=msg;
+  el.style.display='block';
+  clearTimeout(window.__profileNoticeTimer);
+  window.__profileNoticeTimer=setTimeout(()=>{el.style.display='none'},3500);
+}
+function regionOptionForProfile(p){
+  const select=document.getElementById('region');
+  if(!select)return null;
+  const name=(p.birth_region||'').trim();
+  const lon=p.longitude==null?null:Number(p.longitude);
+  const options=[...select.options];
+  let hit=options.find(o=>o.dataset.name===name || o.textContent.trim()===name);
+  if(!hit && Number.isFinite(lon)) hit=options.find(o=>Math.abs(Number(o.value)-lon)<0.03);
+  return hit||null;
+}
+function applyProfileToMainForm(p,notify=true){
+  if(!p)return;
+  selectedMainProfileId=p.id||'';
+  const date=String(p.birth_date||'').split('-');
+  if(date.length===3){
+    document.getElementById('y').value=Number(date[0])||'';
+    document.getElementById('m').value=Number(date[1])||'';
+    document.getElementById('d').value=Number(date[2])||'';
+  }
+  document.getElementById('cal').value=p.calendar_type==='lunar'?(p.is_leap_month?'lunarLeap':'lunar'):'solar';
+  document.getElementById('g').value=p.gender==='male'?'남':'여';
+  const unknown=!!p.time_unknown;
+  document.getElementById('hu').checked=unknown;
+  const t=p.birth_time?String(p.birth_time).slice(0,5):'';
+  if(!unknown && t){
+    const [hh,mm]=t.split(':');
+    document.getElementById('h').value=hh==null?'':Number(hh);
+    document.getElementById('mi').value=mm==null?'':Number(mm);
+  }else{
+    document.getElementById('h').value='';
+    document.getElementById('mi').value='';
+  }
+  document.getElementById('h').disabled=unknown;
+  document.getElementById('mi').disabled=unknown;
+  document.getElementById('region').disabled=unknown;
+  const ro=regionOptionForProfile(p);
+  if(ro) document.getElementById('region').value=ro.value;
+  const sel=document.getElementById('savedProfileSelect');
+  if(sel && p.id) sel.value=p.id;
+  if(notify) showProfileQuickNotice(`${p.label||familyRelationshipText(p.relationship)} 정보를 입력창에 불러왔습니다.`);
+}
+function loadProfileByIdToMain(id,scroll=false){
+  const p=familyProfiles.find(x=>x.id===id);
+  if(!p){showToast('프로필을 찾지 못했습니다.');return;}
+  currentBirthProfileId=p.id||'';
+  applyProfileToMainForm(p,true);
+  if(scroll){
+    const target=document.getElementById('free');
+    if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+}
+function loadSelectedProfileToForm(){
+  const sel=document.getElementById('savedProfileSelect');
+  const id=sel?sel.value:'';
+  if(!id){
+    if(!familyProfiles.length){
+      getFamilyUser().then(user=>{
+        if(!user) window.top.location.href='/login';
+        else openFamilyModal(null,'self');
+      });
+      return;
+    }
+    showToast('불러올 프로필을 선택해 주세요.');
+    return;
+  }
+  loadProfileByIdToMain(id,false);
+}
+function mainFormIsBlank(){
+  return !String(document.getElementById('y').value||'').trim()
+    && !String(document.getElementById('m').value||'').trim()
+    && !String(document.getElementById('d').value||'').trim();
+}
+function autoLoadPrimaryProfileOnce(){
+  if(primaryAutoLoaded || !mainFormIsBlank())return;
+  const p=familyProfiles.find(x=>x.is_primary) || familyProfiles.find(x=>x.relationship==='self');
+  if(!p)return;
+  primaryAutoLoaded=true;
+  applyProfileToMainForm(p,false);
+  showProfileQuickNotice(`대표 프로필 '${p.label||'내 프로필'}'을 자동으로 불러왔습니다.`);
+}
+function mainFormPayloadForUser(user,existing=null){
+  const y=String(document.getElementById('y').value||'').padStart(4,'0');
+  const m=String(document.getElementById('m').value||'').padStart(2,'0');
+  const d=String(document.getElementById('d').value||'').padStart(2,'0');
+  const year=Number(y),month=Number(m),day=Number(d);
+  if(!year||!month||!day)return {error:'생년월일을 먼저 입력해 주세요.'};
+  const cal=document.getElementById('cal').value;
+  const unknown=document.getElementById('hu').checked;
+  const hh=document.getElementById('h').value;
+  const mm=document.getElementById('mi').value;
+  if(!unknown && (hh==='' || mm===''))return {error:'태어난 시간을 입력하거나 시간을 모릅니다에 체크해 주세요.'};
+  const regionSel=document.getElementById('region');
+  const regionOpt=regionSel.options[regionSel.selectedIndex];
+  const relationship=existing?.relationship||'self';
+  const payload={
+    user_id:user.id,
+    label:existing?.label||'내 프로필',
+    relationship,
+    gender:document.getElementById('g').value==='남'?'male':'female',
+    calendar_type:cal==='solar'?'solar':'lunar',
+    is_leap_month:cal==='lunarLeap',
+    birth_date:`${y}-${m}-${d}`,
+    birth_time:unknown?null:`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`,
+    time_unknown:unknown,
+    birth_region:regionOpt?.dataset?.name||regionOpt?.textContent?.trim()||null,
+    longitude:regionSel.disabled?null:Number(regionSel.value),
+    is_primary:existing?!!existing.is_primary:true,
+    updated_at:new Date().toISOString()
+  };
+  return {payload};
+}
+async function saveCurrentFormToProfile(){
+  const user=await getFamilyUser();
+  if(!user){window.top.location.href='/login';return;}
+  let existing=null;
+  const selectedId=document.getElementById('savedProfileSelect')?.value||selectedMainProfileId||'';
+  if(selectedId) existing=familyProfiles.find(p=>p.id===selectedId)||null;
+  if(!existing) existing=familyProfiles.find(p=>p.is_primary)||familyProfiles.find(p=>p.relationship==='self')||null;
+
+  const built=mainFormPayloadForUser(user,existing);
+  if(built.error){showToast(built.error);return;}
+  const payload=built.payload;
+
+  if(existing){
+    const {error}=await familySupabase.from('birth_profiles').update(payload).eq('id',existing.id).eq('user_id',user.id);
+    if(error){console.error(error);showToast('프로필 저장 실패: '+error.message);return;}
+    selectedMainProfileId=existing.id;
+    showToast(`${existing.label||'프로필'} 정보를 업데이트했습니다.`);
+  }else{
+    await familySupabase.from('birth_profiles').update({is_primary:false}).eq('user_id',user.id);
+    const {data,error}=await familySupabase.from('birth_profiles').insert({...payload,label:'내 프로필',relationship:'self',is_primary:true}).select('*').single();
+    if(error){console.error(error);showToast('프로필 저장 실패: '+error.message);return;}
+    selectedMainProfileId=data?.id||'';
+    showToast('내 프로필로 저장했습니다.');
+  }
+  await loadFamilyProfiles();
+  if(selectedMainProfileId){
+    const sel=document.getElementById('savedProfileSelect');
+    if(sel)sel.value=selectedMainProfileId;
+  }
+}
+
+function resetFamilyForm(){
+  document.getElementById('fp_id').value='';document.getElementById('fp_label').value='';document.getElementById('fp_relationship').value='self';document.getElementById('fp_gender').value='unknown';document.getElementById('fp_calendar').value='solar';document.getElementById('fp_birth_date').value='';document.getElementById('fp_birth_time').value='';document.getElementById('fp_region').value='';document.getElementById('fp_time_unknown').checked=false;document.getElementById('fp_leap').checked=false;document.getElementById('fp_primary').checked=false;document.getElementById('familyDeleteBtn').style.display='none';syncFamilyTimeUnknown();
+}
+function openFamilyModal(id=null,relationship=null){
+  getFamilyUser().then(user=>{if(!user){window.top.location.href='/login';return;}
+    resetFamilyForm();
+    if(relationship){document.getElementById('fp_relationship').value=relationship; if(relationship==='self'){document.getElementById('fp_label').value='내 프로필';document.getElementById('fp_primary').checked=true;}}
+    if(id){const p=familyProfiles.find(x=>x.id===id);if(p){document.getElementById('fp_id').value=p.id;document.getElementById('fp_label').value=p.label||'';document.getElementById('fp_relationship').value=p.relationship||'other';document.getElementById('fp_gender').value=p.gender||'unknown';document.getElementById('fp_calendar').value=p.calendar_type||'solar';document.getElementById('fp_birth_date').value=p.birth_date||'';document.getElementById('fp_birth_time').value=p.birth_time?String(p.birth_time).slice(0,5):'';document.getElementById('fp_region').value=p.birth_region||'';document.getElementById('fp_time_unknown').checked=!!p.time_unknown;document.getElementById('fp_leap').checked=!!p.is_leap_month;document.getElementById('fp_primary').checked=!!p.is_primary;document.getElementById('familyDeleteBtn').style.display='block';syncFamilyTimeUnknown();}}
+    document.getElementById('familyModalTitle').textContent=id?'가족 프로필 보기/수정':'가족 프로필 등록';document.getElementById('familyModalBack').style.display='flex';document.body.style.overflow='hidden';
+  });
+}
+function closeFamilyModal(){document.getElementById('familyModalBack').style.display='none';document.body.style.overflow=''}
+function syncFamilyTimeUnknown(){const unknown=document.getElementById('fp_time_unknown').checked;document.getElementById('fp_birth_time').disabled=unknown;if(unknown)document.getElementById('fp_birth_time').value=''}
+async function saveFamilyProfile(){
+  const user=await getFamilyUser();if(!user){window.top.location.href='/login';return;}
+  const id=document.getElementById('fp_id').value;
+  const label=document.getElementById('fp_label').value.trim();const birthDate=document.getElementById('fp_birth_date').value;
+  if(!label){showToast('프로필 이름을 입력해 주세요.');return}if(!birthDate){showToast('생년월일을 입력해 주세요.');return}
+  const payload={user_id:user.id,label,relationship:document.getElementById('fp_relationship').value,gender:document.getElementById('fp_gender').value,calendar_type:document.getElementById('fp_calendar').value,is_leap_month:document.getElementById('fp_leap').checked,birth_date:birthDate,birth_time:document.getElementById('fp_time_unknown').checked?null:(document.getElementById('fp_birth_time').value||null),time_unknown:document.getElementById('fp_time_unknown').checked,birth_region:document.getElementById('fp_region').value.trim()||null,is_primary:document.getElementById('fp_primary').checked,updated_at:new Date().toISOString()};
+  if(payload.is_primary){await familySupabase.from('birth_profiles').update({is_primary:false}).eq('user_id',user.id)}
+  let q=id?familySupabase.from('birth_profiles').update(payload).eq('id',id).eq('user_id',user.id):familySupabase.from('birth_profiles').insert(payload);
+  const {error}=await q;if(error){console.error(error);showToast('저장하지 못했습니다: '+error.message);return}
+  closeFamilyModal();showToast('가족 프로필을 저장했습니다.');await loadFamilyProfiles();
+  const savedId=id||'';
+  if(savedId && familyProfiles.some(p=>p.id===savedId)){selectedMainProfileId=savedId;syncSavedProfileSelect();}
+}
+async function deleteFamilyProfile(){
+  const user=await getFamilyUser();const id=document.getElementById('fp_id').value;if(!user||!id)return;
+  if(!confirm('이 프로필을 삭제할까요?'))return;
+  const {error}=await familySupabase.from('birth_profiles').delete().eq('id',id).eq('user_id',user.id);if(error){showToast('삭제하지 못했습니다: '+error.message);return}
+  if(selectedMainProfileId===id)selectedMainProfileId='';
+  closeFamilyModal();showToast('프로필을 삭제했습니다.');await loadFamilyProfiles();
+}
+document.addEventListener('DOMContentLoaded',()=>setTimeout(loadFamilyProfiles,250));
+window.addEventListener('focus',()=>setTimeout(loadFamilyProfiles,150));
+</script>
+
+</body></html>
