@@ -150,6 +150,7 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
   .brand:after{display:none}
 }
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="icon" type="image/png" href="/favicon.png">
 </head><body>
 <header class="top"><div class="topin"><div class="brand" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="cursor:pointer">나의<b>사주</b></div><nav class="nav"><a href="#free">무료 한 줄 사주</a><a href="#reports">리포트</a><a href="#relation">궁합·가족</a><a href="#my">MY</a></nav><div class="spacer"></div><button class="mybtn" id="authBtn" onclick="handleAuthButton()">로그인</button><button class="mybtn" onclick="document.querySelector('#my').scrollIntoView()">MY REPORT</button></div></header>
 <main>
@@ -249,7 +250,7 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
       <div class="reviewProduct">종합 인생 리포트</div>
       <div class="reviewTitle">생각보다 훨씬 구체적이었어요</div>
       <p class="reviewBody">“처음엔 AI 사주가 얼마나 다르겠어 했는데, 돈 쓰는 습관이랑 일할 때 반복되는 패턴이 너무 구체적이라 놀랐어요. 분량도 생각보다 훨씬 많아서 한 번에 못 읽고 며칠 나눠봤어요.”</p>
-      <div class="reviewAuthor"><span>구매 후기</span><span>#분량 #구체적분석</span></div>
+      <div class="reviewAuthor"><span>40대 김0나 · 여성</span><span>구매 후기</span></div>
     </article>
 
     <article class="reviewCard">
@@ -259,7 +260,7 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
       <div class="reviewProduct">종합 인생 리포트</div>
       <div class="reviewTitle">연애만 보려다 전체를 다 읽었어요</div>
       <p class="reviewBody">“연애운만 보려고 했는데 사업·가족·앞으로의 흐름까지 연결해서 설명해줘서 좋았어요. 특히 제가 왜 같은 상황에서 계속 같은 선택을 하는지 설명한 부분이 기억에 남아요.”</p>
-      <div class="reviewAuthor"><span>구매 후기</span><span>#관계 #가족 #사업</span></div>
+      <div class="reviewAuthor"><span>50대 송0라 · 여성</span><span>구매 후기</span></div>
     </article>
 
     <article class="reviewCard">
@@ -269,7 +270,7 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
       <div class="reviewProduct">종합 인생 리포트</div>
       <div class="reviewTitle">무료 답변과는 확실히 달랐어요</div>
       <p class="reviewBody">“무료 한 줄 답변 보고 결제했는데 유료 리포트는 완전히 다른 수준이었어요. 단순히 ‘좋다, 나쁘다’가 아니라 앞으로 뭘 바꾸면 좋은지까지 나와서 실용적이었어요.”</p>
-      <div class="reviewAuthor"><span>구매 후기</span><span>#실행전략 #심층리포트</span></div>
+      <div class="reviewAuthor"><span>40대 김0훈 · 남성</span><span>구매 후기</span></div>
     </article>
   </div>
 
@@ -287,41 +288,42 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
   <div style="margin-top:11px"><span class="saleBadge">런칭특가 68% OFF</span></div>
   <h3 style="margin-top:9px">종합 인생 리포트</h3>
   <p>성향, 관계, 돈, 일, 대운, 세운과 실행 전략까지 한 번에.</p>
-  <div class="launchNotice">오픈 기념 한정 특가 · 정상가 59,000원</div>
+  <div class="launchNotice">오픈 기념 한정 특가</div>
   <div class="meta"><span class="active">메인 상품</span><span class="salePriceWrap"><span class="oldPrice">59,000원</span><span class="salePrice">19,000원</span></span></div>
 </div>
 
 <div class="product" onclick="openProduct('자녀 사주 리포트','19,000원')">
   <div class="picon">芽</div>
-  <div style="margin-top:11px"><span class="saleBadge">런칭특가</span></div>
+  <div style="margin-top:11px"><span class="saleBadge">런칭특가 68% OFF</span></div>
   <h3 style="margin-top:9px">자녀 사주</h3>
   <p>기질, 공부, 감정, 친구, 양육 방식과 진로 씨앗.</p>
   <a class="sampleLink" href="/sample-child.html" target="_top" onclick="event.stopPropagation()">샘플 리포트 보기</a>
-  <div class="meta"><span class="active">가족 확장</span><span class="salePrice">19,000원</span></div>
+  <div class="meta"><span class="active">가족 확장</span><span class="salePriceWrap"><span class="oldPrice">59,000원</span><span class="salePrice">19,000원</span></span></div>
 </div>
 
 <div class="product" onclick="openProduct('커플·부부 궁합','29,000원')">
   <div class="picon">∞</div>
-  <div style="margin-top:11px"><span class="saleBadge">런칭특가</span></div>
+  <div style="margin-top:11px"><span class="saleBadge">런칭특가 63% OFF</span></div>
   <h3 style="margin-top:9px">커플·부부 궁합</h3>
   <p>두 사람의 구조를 함께 보고 강점과 충돌 패턴을 분석.</p>
   <a class="sampleLink" href="/sample-compatibility.html" target="_top" onclick="event.stopPropagation()">샘플 리포트 보기</a>
-  <div class="meta"><span class="active">2인 분석</span><span class="salePrice">29,000원</span></div>
+  <div class="meta"><span class="active">2인 분석</span><span class="salePriceWrap"><span class="oldPrice">79,000원</span><span class="salePrice">29,000원</span></span></div>
 </div>
 
 <div class="product" onclick="openProduct('부모·자녀 궁합','29,000원')">
   <div class="picon">家</div>
-  <div style="margin-top:11px"><span class="saleBadge">런칭특가</span></div>
+  <div style="margin-top:11px"><span class="saleBadge">런칭특가 63% OFF</span></div>
   <h3 style="margin-top:9px">부모·자녀 궁합</h3>
   <p>부모와 아이가 부딪히는 이유와 소통 방식, 양육 포인트를 구체적으로.</p>
-  <div class="meta"><span class="active">2인 분석</span><span class="salePrice">29,000원</span></div>
+  <div class="meta"><span class="active">2인 분석</span><span class="salePriceWrap"><span class="oldPrice">79,000원</span><span class="salePrice">29,000원</span></span></div>
 </div>
 
 <div class="product" onclick="openProduct('신년 리포트','9,900원')">
   <div class="picon">27</div>
-  <h3>신년 운세</h3>
+  <div style="margin-top:11px"><span class="saleBadge">런칭특가 75% OFF</span></div>
+  <h3 style="margin-top:9px">신년 운세</h3>
   <p>한 해의 핵심 흐름과 월별 변화, 중요한 시기를 빠르게.</p>
-  <div class="meta"><span class="active">매년 재구매</span><span>9,900원</span></div>
+  <div class="meta"><span class="active">매년 재구매</span><span class="salePriceWrap"><span class="oldPrice">39,000원</span><span class="salePrice">9,900원</span></span></div>
 </div>
 </div>
 <div class="commerceInfo">
@@ -399,11 +401,25 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
   </div>
 </footer><nav class="mobileNav"><a href="#free"><span>✦</span>무료사주</a><a href="#reports"><span>▦</span>리포트</a><a href="#relation"><span>∞</span>궁합</a><a href="#my"><span>●</span>MY</a></nav><div class="modalBack" id="modalBack" onclick="if(event.target===this)closeModal()"><div class="modal"><h3 id="modalTitle"></h3><p id="modalText"></p>
 <div id="guestCheckoutBox" style="display:none;margin:14px 0 4px">
-  <label for="guestCheckoutEmail" style="display:block;font-size:11px;font-weight:900;margin-bottom:7px;color:#655f53">비회원 결제 이메일</label>
+  <div style="font-size:11px;font-weight:950;color:#4c4639;margin-bottom:9px">구매 방법을 선택하세요</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+    <button type="button" onclick="window.top.location.href='/login'" style="border:1px solid #e5d7a7;background:#fff;border-radius:12px;padding:11px 8px;font-size:11px;font-weight:950;cursor:pointer">로그인</button>
+    <button type="button" onclick="window.top.location.href='/login?mode=signup'" style="border:1px solid #e5d7a7;background:#fffaf0;border-radius:12px;padding:11px 8px;font-size:11px;font-weight:950;cursor:pointer">회원가입</button>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;margin:10px 0">
+    <div style="height:1px;background:#eee3c6;flex:1"></div>
+    <span style="font-size:10px;color:#968b73;font-weight:900">또는</span>
+    <div style="height:1px;background:#eee3c6;flex:1"></div>
+  </div>
+
+  <div style="font-size:11px;font-weight:950;color:#4c4639;margin:8px 0 7px">회원가입 없이 바로 구매</div>
+  <label for="guestCheckoutEmail" style="display:block;font-size:10.5px;font-weight:900;margin-bottom:6px;color:#655f53">비회원 결제 이메일</label>
   <input id="guestCheckoutEmail" type="email" autocomplete="email" placeholder="리포트 확인에 사용할 이메일을 입력하세요" style="width:100%;border:1px solid #e5dcc1;border-radius:12px;padding:12px 13px;background:#fffdf8;outline:none">
-  <div style="font-size:10px;line-height:1.55;color:#8a8273;margin-top:6px">회원가입 없이 구매할 수 있습니다. 회원 구매 시 MY REPORT에서 구매 내역을 관리할 수 있습니다.</div>
+  <div style="font-size:10px;line-height:1.55;color:#8a8273;margin-top:6px">입력한 이메일은 결제 및 리포트 확인에 사용됩니다.</div>
 </div>
-<div class="modalBtns"><button class="close" onclick="closeModal()">닫기</button><button class="go" id="modalBuyBtn" onclick="confirmCheckout()">구매하기</button></div></div></div>
+<div class="modalBtns"><button class="close" onclick="closeModal()">닫기</button><button class="go" id="modalBuyBtn" onclick="confirmCheckout()">비회원으로 구매하기</button></div></div></div>
 <script>
 
 /* ===== 개인 맞춤 사주 리포트 계산 엔진 =====
@@ -989,6 +1005,8 @@ async function openProduct(name,price){
     : '<b>'+price+'</b><br>결제 후 구매 내역은 MY REPORT에서 관리할 수 있습니다.';
   const guestBox=document.getElementById('guestCheckoutBox');
   if(guestBox) guestBox.style.display=checkoutIsGuest?'block':'none';
+  const buyBtn=document.getElementById('modalBuyBtn');
+  if(buyBtn) buyBtn.textContent=checkoutIsGuest?'비회원으로 구매하기':'구매하기';
   document.getElementById('modalBack').style.display='flex';
 }
 
