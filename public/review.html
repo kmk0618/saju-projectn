@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>후기 작성 | 나의사주</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#fffdf8;--card:#fff;--text:#24231f;--muted:#746f62;--line:#eee6c8;--gold:#f1c94f;--gold2:#fff2b8;--deep:#8c6900}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:linear-gradient(180deg,#fffefb,#fff9eb);color:var(--text)}
+button,input,textarea,select{font:inherit}
+a{text-decoration:none;color:inherit}
+header{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.head{max-width:900px;margin:auto;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-size:18px;font-weight:950;letter-spacing:-.04em}.back{border:1px solid var(--line);background:#fff;border-radius:999px;padding:9px 12px;font-size:11px;font-weight:900}
+main{max-width:900px;margin:auto;padding:34px 20px 80px}
+.hero{background:linear-gradient(145deg,#24231f,#343127);color:#fff;border-radius:28px;padding:28px;box-shadow:0 18px 44px rgba(55,48,28,.13)}
+.kicker{font-size:10px;letter-spacing:.08em;font-weight:950;color:#f6d45f}.hero h1{font-size:32px;letter-spacing:-.05em;margin:8px 0 8px}.hero p{font-size:12.5px;line-height:1.7;color:#d2cdc1;margin:0;max-width:680px}
+.card{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:22px}
+.card h2{margin:0 0 6px;font-size:18px;letter-spacing:-.025em}.sub{font-size:11.5px;color:var(--muted);line-height:1.65;margin-bottom:16px}
+label{display:block;font-size:11px;font-weight:950;margin:13px 0 7px;color:#514c40}
+input,select,textarea{width:100%;border:1.3px solid var(--line);border-radius:14px;background:#fffef9;padding:12px 13px;outline:none;color:#2b2923;font-weight:700}
+input:focus,select:focus,textarea:focus{border-color:#dab126;box-shadow:0 0 0 4px rgba(241,201,79,.16)}
+textarea{min-height:150px;resize:vertical;line-height:1.65}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stars{display:flex;gap:5px}
+.star{width:46px;height:44px;border:1px solid var(--line);border-radius:13px;background:#fff;display:grid;place-items:center;font-size:22px;color:#d9d5c8;cursor:pointer}
+.star.on{background:#fff8da;color:#c59500;border-color:#e7d58e}
+.counter{text-align:right;font-size:10px;color:var(--muted);margin-top:5px}
+.check{display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:11px;line-height:1.6;color:#655f53}.check input{width:auto;margin-top:2px;accent-color:#d5a700}
+.primary{width:100%;border:0;border-radius:15px;padding:14px 16px;margin-top:18px;background:linear-gradient(#f5d360,#e7b82b);color:#3d3000;font-weight:950;cursor:pointer}
+.primary:disabled{opacity:.55;cursor:not-allowed}
+.loginBox{display:none;background:#fff8dc;border:1px solid #eadc9f;border-radius:18px;padding:17px;font-size:12px;line-height:1.7;color:#655a32}
+.loginBtn{border:0;background:#22211d;color:#f6d45f;border-radius:12px;padding:10px 13px;font-weight:950;margin-top:9px;cursor:pointer}
+.status{margin-top:10px;font-size:11px;line-height:1.6;color:#716a5e}
+.status.error{color:#b54b2c}
+.pill{display:inline-block;background:var(--gold2);color:#765900;border-radius:999px;padding:6px 8px;font-size:10px;font-weight:950}
+.myList{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.myReview{border:1px solid var(--line);border-radius:16px;padding:13px;background:#fffef9;display:grid;grid-template-columns:1fr auto;gap:10px}
+.myReview b{font-size:12px}.myReview p{font-size:11px;color:var(--muted);line-height:1.55;margin:5px 0 0}.myStatus{font-size:10px;border-radius:999px;padding:6px 8px;height:max-content;font-weight:900;background:#f0eee7;color:#6c665a}
+.myStatus.approved{background:#eaf7e8;color:#397238}.myStatus.rejected{background:#fff0ec;color:#a54a32}
+.notice{margin-top:14px;background:#f7f5ef;border:1px solid #e7e2d5;border-radius:14px;padding:12px;font-size:10.5px;line-height:1.7;color:#756f64}
+@media(max-width:620px){.row{grid-template-columns:1fr}.star{flex:1}}
+</style>
+</head>
+<body>
+<header><div class="head"><div class="brand">나의사주 · 후기</div><a class="back" href="/">서비스로 돌아가기</a></div></header>
+<main>
+<section class="hero">
+  <div class="kicker">REVIEW</div>
+  <h1>읽어본 느낌을 남겨주세요</h1>
+  <p>좋았던 점도, 아쉬웠던 점도 괜찮습니다. 작성된 후기는 운영자 검토 후 공개되며 개인정보가 과도하게 포함된 내용은 공개하지 않을 수 있습니다.</p>
+</section>
+
+<section class="card">
+  <div id="loginBox" class="loginBox">
+    후기를 작성하려면 로그인이 필요합니다.<br>
+    <button class="loginBtn" onclick="location.href='/login'">로그인하고 후기 작성하기</button>
+  </div>
+
+  <div id="reviewFormWrap">
+    <h2>후기 작성</h2>
+    <div class="sub">결제 완료 주문이 확인되면 공개 후기에서 <b>구매 확인</b>으로 표시할 수 있습니다. 아직 결제 연동 전인 경우에는 일반 체험 후기로 작성할 수 있습니다.</div>
+
+    <div id="paidOrderBox" style="display:none">
+      <label>구매한 리포트에서 선택</label>
+      <select id="paidOrder">
+        <option value="">구매 내역을 사용하지 않고 작성</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>후기 대상 상품</label>
+        <select id="product">
+          <option value="life-report|종합 인생 리포트">종합 인생 리포트</option>
+          <option value="wealth-business|재물·사업 리포트">재물·사업 리포트</option>
+          <option value="love-marriage|연애·결혼 리포트">연애·결혼 리포트</option>
+          <option value="child-report|자녀 사주 리포트">자녀 사주 리포트</option>
+          <option value="couple-compatibility|커플·부부 궁합">커플·부부 궁합</option>
+          <option value="new-year|신년 리포트">신년 리포트</option>
+          <option value="extra-question|추가 질문">추가 질문</option>
+        </select>
+      </div>
+      <div>
+        <label>공개할 이름</label>
+        <input id="displayName" maxlength="30" placeholder="예: 김민경 / 민디 / 김민*">
+      </div>
+    </div>
+
+    <label>별점</label>
+    <div class="stars" id="stars">
+      <button type="button" class="star on" data-rating="1">★</button>
+      <button type="button" class="star on" data-rating="2">★</button>
+      <button type="button" class="star on" data-rating="3">★</button>
+      <button type="button" class="star on" data-rating="4">★</button>
+      <button type="button" class="star on" data-rating="5">★</button>
+    </div>
+
+    <label>한 줄 제목</label>
+    <input id="title" maxlength="80" placeholder="예: 무료 답변과는 확실히 달랐어요">
+
+    <label>후기 내용</label>
+    <textarea id="body" maxlength="1200" placeholder="어떤 부분이 기억에 남았는지, 분량이나 구성은 어땠는지 편하게 적어주세요."></textarea>
+    <div class="counter"><span id="bodyCount">0</span> / 1200</div>
+
+    <label class="check">
+      <input type="checkbox" id="consent" checked>
+      <span>작성한 후기가 운영자 검토 후 서비스의 후기 영역에 공개되는 것에 동의합니다. 공개 시 계정 이메일은 표시되지 않습니다.</span>
+    </label>
+
+    <button class="primary" id="submitBtn" onclick="submitReview()">후기 등록하기</button>
+    <div class="status" id="status"></div>
+
+    <div class="notice">
+      후기에는 주민등록번호, 전화번호, 상세 주소, 계좌·카드정보 등 민감한 개인정보를 적지 마세요. 욕설·광고·타인의 개인정보가 포함된 후기는 공개되지 않을 수 있습니다.
+    </div>
+  </div>
+</section>
+
+<section class="card" id="myReviewCard">
+  <h2>내가 작성한 후기</h2>
+  <div class="sub">검토 대기 중인 후기는 아직 메인 사이트에 공개되지 않습니다.</div>
+  <div class="myList" id="myReviews"><div class="status">불러오는 중...</div></div>
+</section>
+</main>
+
+<script>
+const SUPABASE_URL='https://scmskjvhejnchhyufyfa.supabase.co';
+const SUPABASE_KEY='sb_publishable__aKUm_yLUXA1cS18gFuumA_J9lArQcD';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let currentUser=null;
+let rating=5;
+let paidOrders=[];
+
+function esc(v){return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));}
+function setStatus(msg,error=false){
+  const el=document.getElementById('status');
+  el.textContent=msg||'';
+  el.className='status'+(error?' error':'');
+}
+function setRating(n){
+  rating=n;
+  document.querySelectorAll('.star').forEach(btn=>{
+    btn.classList.toggle('on',Number(btn.dataset.rating)<=rating);
+  });
+}
+document.querySelectorAll('.star').forEach(btn=>btn.addEventListener('click',()=>setRating(Number(btn.dataset.rating))));
+document.getElementById('body').addEventListener('input',e=>document.getElementById('bodyCount').textContent=e.target.value.length);
+
+async function loadPaidOrders(){
+  if(!currentUser)return;
+  try{
+    const {data,error}=await sb.from('orders')
+      .select('id,product_id,status,created_at,products(id,slug,name)')
+      .eq('user_id',currentUser.id)
+      .eq('status','paid')
+      .order('created_at',{ascending:false});
+    if(error)throw error;
+    paidOrders=data||[];
+    if(!paidOrders.length)return;
+
+    const box=document.getElementById('paidOrderBox');
+    const sel=document.getElementById('paidOrder');
+    box.style.display='block';
+    sel.innerHTML='<option value="">구매 내역을 사용하지 않고 작성</option>'+paidOrders.map((o,i)=>{
+      const name=o.products?.name||'구매 리포트';
+      return `<option value="${i}">${esc(name)} · 구매 확인 가능</option>`;
+    }).join('');
+
+    sel.addEventListener('change',()=>{
+      const idx=sel.value===''?null:Number(sel.value);
+      if(idx===null)return;
+      const o=paidOrders[idx];
+      const slug=o.products?.slug||'';
+      const name=o.products?.name||'';
+      if(slug&&name){
+        const product=document.getElementById('product');
+        [...product.options].forEach(opt=>{
+          if(opt.value===slug+'|'+name)product.value=opt.value;
+        });
+      }
+    });
+  }catch(e){
+    console.warn('구매내역 불러오기 실패',e);
+  }
+}
+
+async function submitReview(){
+  if(!currentUser){location.href='/login';return;}
+  const displayName=document.getElementById('displayName').value.trim();
+  const title=document.getElementById('title').value.trim();
+  const body=document.getElementById('body').value.trim();
+  const consent=document.getElementById('consent').checked;
+  const [productSlug,productName]=document.getElementById('product').value.split('|');
+
+  if(!displayName){setStatus('공개할 이름을 입력해 주세요.',true);return;}
+  if(body.length<10){setStatus('후기는 10자 이상 작성해 주세요.',true);return;}
+
+  const orderSelect=document.getElementById('paidOrder');
+  const orderIdx=orderSelect&&orderSelect.value!==''?Number(orderSelect.value):null;
+  const order=orderIdx===null?null:paidOrders[orderIdx];
+
+  const btn=document.getElementById('submitBtn');
+  btn.disabled=true;
+  setStatus('후기를 등록하는 중...');
+
+  try{
+    const payload={
+      user_id:currentUser.id,
+      order_id:order?.id||null,
+      product_id:order?.product_id||null,
+      product_slug:order?.products?.slug||productSlug,
+      product_name:order?.products?.name||productName,
+      rating,
+      title:title||null,
+      body,
+      display_name:displayName,
+      public_consent:consent,
+      status:'pending',
+      verified_purchase:false
+    };
+
+    const {error}=await sb.from('reviews').insert(payload);
+    if(error)throw error;
+
+    setStatus('등록되었습니다. 운영자 검토 후 공개됩니다.');
+    document.getElementById('title').value='';
+    document.getElementById('body').value='';
+    document.getElementById('bodyCount').textContent='0';
+    setRating(5);
+    await loadMyReviews();
+  }catch(e){
+    console.error(e);
+    setStatus('후기 등록에 실패했습니다: '+(e?.message||'알 수 없는 오류'),true);
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+async function deleteReview(id){
+  if(!confirm('검토 대기 중인 후기를 삭제할까요?'))return;
+  const {error}=await sb.from('reviews').delete().eq('id',id).eq('user_id',currentUser.id);
+  if(error){alert('삭제하지 못했습니다: '+error.message);return;}
+  loadMyReviews();
+}
+
+async function loadMyReviews(){
+  if(!currentUser)return;
+  const wrap=document.getElementById('myReviews');
+  const {data,error}=await sb.from('reviews')
+    .select('id,product_name,rating,title,body,status,verified_purchase,created_at')
+    .eq('user_id',currentUser.id)
+    .order('created_at',{ascending:false});
+
+  if(error){wrap.innerHTML='<div class="status error">후기를 불러오지 못했습니다.</div>';return;}
+  const rows=data||[];
+  if(!rows.length){wrap.innerHTML='<div class="status">아직 작성한 후기가 없습니다.</div>';return;}
+
+  const label={pending:'검토 대기',approved:'공개됨',rejected:'비공개'};
+  wrap.innerHTML=rows.map(r=>`<div class="myReview">
+    <div>
+      <b>${'★'.repeat(r.rating)} ${esc(r.product_name)} ${r.verified_purchase?'<span class="pill">구매 확인</span>':''}</b>
+      <p>${esc(r.title||'리포트 후기')} · ${esc(r.body.slice(0,100))}${r.body.length>100?'…':''}</p>
+      ${r.status==='pending'?`<button type="button" onclick="deleteReview('${r.id}')" style="margin-top:8px;border:1px solid #ddd5bd;background:#fff;border-radius:9px;padding:6px 8px;font-size:10px;font-weight:900;cursor:pointer">삭제</button>`:''}
+    </div>
+    <span class="myStatus ${r.status}">${label[r.status]||r.status}</span>
+  </div>`).join('');
+}
+
+async function init(){
+  const {data}=await sb.auth.getSession();
+  currentUser=data?.session?.user||null;
+  const loginBox=document.getElementById('loginBox');
+  const form=document.getElementById('reviewFormWrap');
+  const my=document.getElementById('myReviewCard');
+
+  if(!currentUser){
+    loginBox.style.display='block';
+    form.style.display='none';
+    my.style.display='none';
+    return;
+  }
+
+  const meta=currentUser.user_metadata||{};
+  document.getElementById('displayName').value=
+    meta.full_name||meta.name||meta.user_name||(currentUser.email?currentUser.email.split('@')[0]:'회원');
+
+  await Promise.all([loadPaidOrders(),loadMyReviews()]);
+}
+init();
+</script>
+</body>
+</html>
