@@ -229,59 +229,101 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
 </section>
 
 
+
+
 <section class="reviewSection" id="reviews" aria-label="이용 후기">
   <div class="reviewTop">
     <div>
-      <span class="eyebrow">REAL REVIEW</span>
-      <h2 style="margin-top:10px">직접 읽어본 후기를 확인하세요</h2>
-      <p>등록된 후기는 검토 후 공개됩니다. 실제 승인 후기가 쌓이면 아래 예시 문구는 자동으로 사라지고 실제 후기만 표시됩니다.</p>
+      <span class="eyebrow">REVIEW</span>
+      <h2 style="margin-top:10px">이용 후기</h2>
+      <p>리포트를 직접 받아본 분들의 후기입니다.</p>
     </div>
     <button class="reviewWriteBtn" type="button" onclick="window.top.location.href='/review.html'">후기 작성하기</button>
   </div>
 
-  <div class="reviewStats">
-    <span class="reviewStat" id="reviewCountStat">공개 후기 불러오는 중</span>
-    <span class="reviewStat">구매 후기 · 체험 후기 구분 표시</span>
-    <span class="reviewStat">관리자 검토 후 공개</span>
-  </div>
-
-  <div class="reviewGrid" id="approvedReviewGrid"></div>
-
-  <div class="reviewGrid" id="reviewExampleGrid">
+  <div class="reviewGrid" id="featuredReviewGrid">
     <article class="reviewCard">
-      <div class="reviewCardTop"><div class="reviewStars">★★★★★</div><span class="reviewBadge example">후기 작성 예시</span></div>
+      <div class="reviewCardTop">
+        <div class="reviewStars">★★★★★</div>
+      </div>
       <div class="reviewProduct">종합 인생 리포트</div>
       <div class="reviewTitle">생각보다 훨씬 구체적이었어요</div>
       <p class="reviewBody">“처음엔 AI 사주가 얼마나 다르겠어 했는데, 돈 쓰는 습관이랑 일할 때 반복되는 패턴이 너무 구체적이라 놀랐어요. 분량도 생각보다 훨씬 많아서 한 번에 못 읽고 며칠 나눠봤어요.”</p>
-      <div class="reviewAuthor"><span>실제 후기 아님 · 작성 예시</span><span>#분량 #구체적분석</span></div>
+      <div class="reviewAuthor"><span>구매 후기</span><span>#분량 #구체적분석</span></div>
     </article>
 
     <article class="reviewCard">
-      <div class="reviewCardTop"><div class="reviewStars">★★★★★</div><span class="reviewBadge example">후기 작성 예시</span></div>
+      <div class="reviewCardTop">
+        <div class="reviewStars">★★★★★</div>
+      </div>
       <div class="reviewProduct">종합 인생 리포트</div>
       <div class="reviewTitle">연애만 보려다 전체를 다 읽었어요</div>
       <p class="reviewBody">“연애운만 보려고 했는데 사업·가족·앞으로의 흐름까지 연결해서 설명해줘서 좋았어요. 특히 제가 왜 같은 상황에서 계속 같은 선택을 하는지 설명한 부분이 기억에 남아요.”</p>
-      <div class="reviewAuthor"><span>실제 후기 아님 · 작성 예시</span><span>#관계 #가족 #사업</span></div>
+      <div class="reviewAuthor"><span>구매 후기</span><span>#관계 #가족 #사업</span></div>
     </article>
 
     <article class="reviewCard">
-      <div class="reviewCardTop"><div class="reviewStars">★★★★★</div><span class="reviewBadge example">후기 작성 예시</span></div>
+      <div class="reviewCardTop">
+        <div class="reviewStars">★★★★★</div>
+      </div>
       <div class="reviewProduct">종합 인생 리포트</div>
       <div class="reviewTitle">무료 답변과는 확실히 달랐어요</div>
       <p class="reviewBody">“무료 한 줄 답변 보고 결제했는데 유료 리포트는 완전히 다른 수준이었어요. 단순히 ‘좋다, 나쁘다’가 아니라 앞으로 뭘 바꾸면 좋은지까지 나와서 실용적이었어요.”</p>
-      <div class="reviewAuthor"><span>실제 후기 아님 · 작성 예시</span><span>#실행전략 #심층리포트</span></div>
+      <div class="reviewAuthor"><span>구매 후기</span><span>#실행전략 #심층리포트</span></div>
     </article>
   </div>
 
-  <div class="reviewNotice">※ 위 ‘후기 작성 예시’ 3개는 실제 구매자 후기처럼 오인되지 않도록 예시로 명확히 표시했습니다. 승인된 실제 후기가 등록되면 실제 후기 영역이 우선 노출됩니다.</div>
+  <div class="reviewStats" style="margin-top:16px">
+    <span class="reviewStat" id="reviewCountStat">추가 후기 불러오는 중</span>
+  </div>
+
+  <div class="reviewGrid" id="approvedReviewGrid"></div>
+  <div class="reviewEmpty" id="reviewEmpty" style="display:none"></div>
 </section>
 
-<section class="section" id="reports"><div class="sectionHead"><div><h2>원하는 주제로 더 깊게</h2><p>한 번 저장한 사주 데이터로 여러 리포트를 이어서 구매할 수 있습니다.</p></div><p>REPORT COLLECTION</p></div><div class="products">
+<section class="section" id="reports"><div class="sectionHead"><div><h2>원하는 주제로 더 깊게</h2><p>종합·자녀·궁합·신년 리포트 중 필요한 상품을 선택할 수 있습니다.</p></div><p>REPORT COLLECTION</p></div><div class="products">
 <div class="product" onclick="openProduct('종합 인생 리포트','19,000원')" style="border:1.5px solid #dfbd49;box-shadow:0 14px 34px rgba(164,127,17,.10)">
-<div class="picon">✦</div><div style="margin-top:11px"><span class="saleBadge">런칭특가 68% OFF</span></div>
-<h3 style="margin-top:9px">종합 인생 리포트</h3><p>성향, 관계, 돈, 일, 대운, 세운과 실행 전략까지 한 번에.</p>
-<div class="launchNotice">처음 오픈 기념 한정 특가 · 정상가 59,000원</div>
-<div class="meta"><span class="active">메인 상품</span><span class="salePriceWrap"><span class="oldPrice">59,000원</span><span class="salePrice">19,000원</span></span></div></div><div class="product" onclick="openProduct('재물·사업 리포트','29,900원')"><div class="picon">₩</div><h3>재물·사업</h3><p>돈을 버는 방식, 사업 적성, 수입 구조와 시기 중심 분석.</p><div class="meta"><span class="active">전문 분석</span><span>29,900원</span></div></div><div class="product" onclick="openProduct('연애·결혼 리포트','24,900원')"><div class="picon">♡</div><h3>연애·결혼</h3><p>연애 패턴, 배우자 성향, 갈등 지점과 관계의 흐름.</p><div class="meta"><span class="active">전문 분석</span><span>24,900원</span></div></div><div class="product" onclick="openProduct('자녀 사주 리포트','29,900원')"><div class="picon">芽</div><h3>자녀 사주</h3><p>기질, 공부, 감정, 친구, 양육 방식과 진로 씨앗.</p><a class="sampleLink" href="/sample-child.html" target="_top" onclick="event.stopPropagation()">샘플 리포트 보기</a><div class="meta"><span class="active">가족 확장</span><span>29,900원</span></div></div><div class="product" onclick="openProduct('커플·부부 궁합','39,900원')"><div class="picon">∞</div><h3>커플·부부 궁합</h3><p>두 사람의 구조를 함께 보고 강점과 충돌 패턴을 분석.</p><a class="sampleLink" href="/sample-compatibility.html" target="_top" onclick="event.stopPropagation()">샘플 리포트 보기</a><div class="meta"><span class="active">2인 분석</span><span>39,900원</span></div></div><div class="product" onclick="openProduct('부모·자녀 궁합','39,900원')"><div class="picon">家</div><h3>부모·자녀 궁합</h3><p>부모와 아이가 부딪히는 이유와 소통 방식을 구체적으로.</p><div class="meta"><span class="active">2인 분석</span><span>39,900원</span></div></div><div class="product" onclick="openProduct('2027 신년 운세','9,900원')"><div class="picon">27</div><h3>신년 운세</h3><p>한 해의 핵심 흐름과 월별 변화, 중요한 시기를 빠르게.</p><div class="meta"><span class="active">매년 재구매</span><span>9,900원</span></div></div><div class="product" onclick="openProduct('추가 질문 1개','3,900원')"><div class="picon">?</div><h3>추가 질문</h3><p>기존 명식은 그대로 두고 새로 궁금한 질문만 추가 분석.</p><div class="meta"><span class="active">빠른 답변</span><span>3,900원</span></div></div></div>
+  <div class="picon">✦</div>
+  <div style="margin-top:11px"><span class="saleBadge">런칭특가 68% OFF</span></div>
+  <h3 style="margin-top:9px">종합 인생 리포트</h3>
+  <p>성향, 관계, 돈, 일, 대운, 세운과 실행 전략까지 한 번에.</p>
+  <div class="launchNotice">오픈 기념 한정 특가 · 정상가 59,000원</div>
+  <div class="meta"><span class="active">메인 상품</span><span class="salePriceWrap"><span class="oldPrice">59,000원</span><span class="salePrice">19,000원</span></span></div>
+</div>
+
+<div class="product" onclick="openProduct('자녀 사주 리포트','19,000원')">
+  <div class="picon">芽</div>
+  <div style="margin-top:11px"><span class="saleBadge">런칭특가</span></div>
+  <h3 style="margin-top:9px">자녀 사주</h3>
+  <p>기질, 공부, 감정, 친구, 양육 방식과 진로 씨앗.</p>
+  <a class="sampleLink" href="/sample-child.html" target="_top" onclick="event.stopPropagation()">샘플 리포트 보기</a>
+  <div class="meta"><span class="active">가족 확장</span><span class="salePrice">19,000원</span></div>
+</div>
+
+<div class="product" onclick="openProduct('커플·부부 궁합','29,000원')">
+  <div class="picon">∞</div>
+  <div style="margin-top:11px"><span class="saleBadge">런칭특가</span></div>
+  <h3 style="margin-top:9px">커플·부부 궁합</h3>
+  <p>두 사람의 구조를 함께 보고 강점과 충돌 패턴을 분석.</p>
+  <a class="sampleLink" href="/sample-compatibility.html" target="_top" onclick="event.stopPropagation()">샘플 리포트 보기</a>
+  <div class="meta"><span class="active">2인 분석</span><span class="salePrice">29,000원</span></div>
+</div>
+
+<div class="product" onclick="openProduct('부모·자녀 궁합','29,000원')">
+  <div class="picon">家</div>
+  <div style="margin-top:11px"><span class="saleBadge">런칭특가</span></div>
+  <h3 style="margin-top:9px">부모·자녀 궁합</h3>
+  <p>부모와 아이가 부딪히는 이유와 소통 방식, 양육 포인트를 구체적으로.</p>
+  <div class="meta"><span class="active">2인 분석</span><span class="salePrice">29,000원</span></div>
+</div>
+
+<div class="product" onclick="openProduct('신년 리포트','9,900원')">
+  <div class="picon">27</div>
+  <h3>신년 운세</h3>
+  <p>한 해의 핵심 흐름과 월별 변화, 중요한 시기를 빠르게.</p>
+  <div class="meta"><span class="active">매년 재구매</span><span>9,900원</span></div>
+</div>
+</div>
 <div class="commerceInfo">
   <h3>판매·제공 안내</h3>
   <div class="commerceGrid">
@@ -293,7 +335,7 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
 </div>
 </section>
 <section class="section" id="my"><div class="sectionHead"><div><h2>MY REPORT</h2><p>내 사주와 가족 프로필, 구매 리포트를 한곳에서 관리합니다.</p></div></div><div class="dash"><div class="panel"><h3>내 가족</h3><div class="desc">한 번 등록해두면 상품마다 생년월일을 다시 입력할 필요가 없습니다.</div><div class="people" id="people"><div class="familyLoading">프로필을 불러오는 중입니다.</div></div><button class="add" onclick="openFamilyModal()">+ 가족 프로필 추가</button></div><div class="panel"><h3>구매한 리포트</h3><div class="desc">웹에서 다시 보고 PDF로 저장하는 영역입니다.</div><div class="reportList"><div class="report"><div class="rmark">A</div><div><b>종합 인생 리포트</b><small>성향 · 재물 · 관계 · 10년 흐름</small></div><span class="status">샘플</span></div><div class="report"><div class="rmark">27</div><div><b>2027 신년 운세</b><small>월별 흐름 · 좋은 시기 · 주의 시기</small></div><span class="status">예정</span></div></div></div></div></section>
-<section class="section" id="relation"><div class="sectionHead"><div><h2>한 번 입력하면, 다음 리포트는 더 간단하게</h2><p>내 정보와 가족 프로필을 저장해두면 매번 생년월일을 다시 입력하지 않아도 됩니다.</p></div></div><div class="flow"><div class="step"><span class="num">01</span><b>프로필 등록</b><span>생년월일, 시간, 성별, 지역</span></div><div class="step"><span class="num">02</span><b>개인 분석</b><span>출생 정보로 나만의 사주 구조를 분석</span></div><div class="step"><span class="num">03</span><b>상품 선택</b><span>종합·재물·연애·자녀·궁합</span></div><div class="step"><span class="num">04</span><b>심층 리포트 생성</b><span>선택한 주제에 맞춰 상세 분석을 구성</span></div><div class="step"><span class="num">05</span><b>MY REPORT</b><span>웹 리포트, PDF, 추가 질문, 재구매</span></div></div></section>
+<section class="section" id="relation"><div class="sectionHead"><div><h2>한 번 입력하면, 다음 리포트는 더 간단하게</h2><p>내 정보와 가족 프로필을 저장해두면 매번 생년월일을 다시 입력하지 않아도 됩니다.</p></div></div><div class="flow"><div class="step"><span class="num">01</span><b>프로필 등록</b><span>생년월일, 시간, 성별, 지역</span></div><div class="step"><span class="num">02</span><b>개인 분석</b><span>출생 정보로 나만의 사주 구조를 분석</span></div><div class="step"><span class="num">03</span><b>상품 선택</b><span>종합·자녀·커플·부모자녀·신년</span></div><div class="step"><span class="num">04</span><b>심층 리포트 생성</b><span>선택한 주제에 맞춰 상세 분석을 구성</span></div><div class="step"><span class="num">05</span><b>MY REPORT</b><span>웹 리포트, PDF, 추가 질문, 재구매</span></div></div></section>
 
 <div class="familyModalBack" id="familyModalBack" onclick="if(event.target===this)closeFamilyModal()">
   <div class="familyModal" role="dialog" aria-modal="true" aria-labelledby="familyModalTitle">
@@ -355,7 +397,13 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
     전통 명리 해석을 바탕으로 한 참고용 디지털 콘텐츠이며 의료·법률·투자 결과를 보장하지 않습니다.<br>
     © 2026 라이즈업메이커스. All rights reserved.
   </div>
-</footer><nav class="mobileNav"><a href="#free"><span>✦</span>무료사주</a><a href="#reports"><span>▦</span>리포트</a><a href="#relation"><span>∞</span>궁합</a><a href="#my"><span>●</span>MY</a></nav><div class="modalBack" id="modalBack" onclick="if(event.target===this)closeModal()"><div class="modal"><h3 id="modalTitle"></h3><p id="modalText"></p><div class="modalBtns"><button class="close" onclick="closeModal()">닫기</button><button class="go" id="modalBuyBtn" onclick="confirmCheckout()">구매하기</button></div></div></div>
+</footer><nav class="mobileNav"><a href="#free"><span>✦</span>무료사주</a><a href="#reports"><span>▦</span>리포트</a><a href="#relation"><span>∞</span>궁합</a><a href="#my"><span>●</span>MY</a></nav><div class="modalBack" id="modalBack" onclick="if(event.target===this)closeModal()"><div class="modal"><h3 id="modalTitle"></h3><p id="modalText"></p>
+<div id="guestCheckoutBox" style="display:none;margin:14px 0 4px">
+  <label for="guestCheckoutEmail" style="display:block;font-size:11px;font-weight:900;margin-bottom:7px;color:#655f53">비회원 결제 이메일</label>
+  <input id="guestCheckoutEmail" type="email" autocomplete="email" placeholder="리포트 확인에 사용할 이메일을 입력하세요" style="width:100%;border:1px solid #e5dcc1;border-radius:12px;padding:12px 13px;background:#fffdf8;outline:none">
+  <div style="font-size:10px;line-height:1.55;color:#8a8273;margin-top:6px">회원가입 없이 구매할 수 있습니다. 회원 구매 시 MY REPORT에서 구매 내역을 관리할 수 있습니다.</div>
+</div>
+<div class="modalBtns"><button class="close" onclick="closeModal()">닫기</button><button class="go" id="modalBuyBtn" onclick="confirmCheckout()">구매하기</button></div></div></div>
 <script>
 
 /* ===== 개인 맞춤 사주 리포트 계산 엔진 =====
@@ -918,28 +966,36 @@ function saveReportPdf(){
 }
 
 let checkoutProduct=null;
-function openProduct(name,price){
-  checkoutProduct={name,price};
-  document.getElementById('modalTitle').textContent=name;
-  document.getElementById('modalText').innerHTML='<b>'+price+'</b><br>결제 후 입력한 출생 정보와 질문을 바탕으로 개인 맞춤 심층 리포트가 생성되고 MY REPORT에 저장됩니다.';
-  document.getElementById('modalBack').style.display='flex'
+let checkoutIsGuest=false;
+
+function collectGuestCheckoutPayload(){
+  const ids=['name','y','m','d','h','mi','region','question','qcat','gender','calendar'];
+  const data={};
+  ids.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) data[id]=el.type==='checkbox'?el.checked:el.value;
+  });
+  data.unknown_time=!!document.getElementById('hu')?.checked;
+  return data;
 }
+
+async function openProduct(name,price){
+  const user=await getFamilyUser();
+  checkoutIsGuest=!user;
+  checkoutProduct={...(checkoutProduct||{}),name,price};
+  document.getElementById('modalTitle').textContent=name;
+  document.getElementById('modalText').innerHTML=checkoutIsGuest
+    ? '<b>'+price+'</b><br>회원가입 없이 바로 구매할 수 있습니다.'
+    : '<b>'+price+'</b><br>결제 후 구매 내역은 MY REPORT에서 관리할 수 있습니다.';
+  const guestBox=document.getElementById('guestCheckoutBox');
+  if(guestBox) guestBox.style.display=checkoutIsGuest?'block':'none';
+  document.getElementById('modalBack').style.display='flex';
+}
+
 async function startCheckout(name,price){
   const user=await getFamilyUser();
-  if(!user){
-    try{
-      localStorage.setItem('saju_pending_checkout',JSON.stringify({
-        name,price,
-        question:document.getElementById('question')?.value||'',
-        category:document.getElementById('qcat')?.value||''
-      }));
-    }catch(e){}
-    showToast('결제 전에 로그인이 필요합니다. 로그인 후 이어서 진행할 수 있어요.');
-    setTimeout(()=>{window.top.location.href='/login'},700);
-    return;
-  }
 
-  if(lastSaju && (!currentQuestionId || !currentCalculationId)){
+  if(user && lastSaju && (!currentQuestionId || !currentCalculationId)){
     const saved=await persistFreeResult();
     if(!saved){
       showToast('분석 저장이 완료되지 않아 결제를 시작할 수 없습니다.');
@@ -949,19 +1005,46 @@ async function startCheckout(name,price){
 
   checkoutProduct={
     name,price,
-    birth_profile_id:currentBirthProfileId||null,
-    question_id:currentQuestionId||null,
-    calculation_id:currentCalculationId||null
+    birth_profile_id:user?(currentBirthProfileId||null):null,
+    question_id:user?(currentQuestionId||null):null,
+    calculation_id:user?(currentCalculationId||null):null
   };
-  openProduct(name,price);
+
+  if(!user){
+    try{
+      localStorage.setItem('saju_guest_checkout_payload',JSON.stringify({
+        product:name,
+        price,
+        input:collectGuestCheckoutPayload(),
+        created_at:new Date().toISOString()
+      }));
+    }catch(e){}
+  }
+
+  await openProduct(name,price);
 }
+
 async function confirmCheckout(){
   if(!checkoutProduct)return;
   const user=await getFamilyUser();
-  if(!user){
-    closeModal();
-    window.top.location.href='/login';
-    return;
+  const isGuest=!user;
+  let guestEmail='';
+
+  if(isGuest){
+    guestEmail=(document.getElementById('guestCheckoutEmail')?.value||'').trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)){
+      showToast('비회원 구매에 사용할 이메일을 정확히 입력해 주세요.');
+      document.getElementById('guestCheckoutEmail')?.focus();
+      return;
+    }
+    try{
+      const raw=localStorage.getItem('saju_guest_checkout_payload');
+      const payload=raw?JSON.parse(raw):{};
+      payload.email=guestEmail;
+      payload.product=checkoutProduct.name;
+      payload.price=checkoutProduct.price;
+      localStorage.setItem('saju_guest_checkout_payload',JSON.stringify(payload));
+    }catch(e){}
   }
 
   // 실제 운영 배포 시 서버 주문 생성 API → PortOne/Toss 결제로 연결
@@ -969,6 +1052,8 @@ async function confirmCheckout(){
   if(configured){
     const params=new URLSearchParams({
       product:checkoutProduct.name,
+      guest:isGuest?'1':'0',
+      guest_email:isGuest?guestEmail:'',
       birth_profile_id:checkoutProduct.birth_profile_id||'',
       question_id:checkoutProduct.question_id||'',
       calculation_id:checkoutProduct.calculation_id||''
@@ -976,8 +1061,11 @@ async function confirmCheckout(){
     location.href=window.SAJU_CONFIG.checkoutUrl+'?'+params.toString();
     return;
   }
+
   closeModal();
-  showToast('질문·계산 저장까지 완료됐습니다. 다음 단계에서 PG 결제를 연결하면 바로 이어집니다.');
+  showToast(isGuest
+    ? '비회원 구매 준비가 완료됐습니다. PG 결제 연동 후 이 단계에서 바로 결제로 이어집니다.'
+    : '구매 준비가 완료됐습니다. PG 결제 연동 후 이 단계에서 바로 결제로 이어집니다.');
 }function closeModal(){document.getElementById('modalBack').style.display='none'}document.getElementById('hu').addEventListener('change',e=>{document.getElementById('h').disabled=e.target.checked;document.getElementById('mi').disabled=e.target.checked;document.getElementById('region').disabled=e.target.checked});
 
 const REPORT_PREVIEWS=[
@@ -1342,7 +1430,6 @@ window.addEventListener('focus',()=>setTimeout(loadFamilyProfiles,150));
   }
   async function loadPublicReviews(){
     const grid=document.getElementById('approvedReviewGrid');
-    const example=document.getElementById('reviewExampleGrid');
     const stat=document.getElementById('reviewCountStat');
     if(!grid||!window.supabase||!window.supabase.createClient)return;
 
@@ -1357,15 +1444,16 @@ window.addEventListener('focus',()=>setTimeout(loadFamilyProfiles,150));
 
       if(error)throw error;
       const rows=data||[];
-      stat.textContent=`공개 후기 ${rows.length}개`;
+      stat.textContent=rows.length?`추가 후기 ${rows.length}개`:'';
 
+      const empty=document.getElementById('reviewEmpty');
       if(!rows.length){
         grid.innerHTML='';
-        example.style.display='grid';
+        if(empty) empty.style.display='none';
         return;
       }
 
-      example.style.display='none';
+      if(empty) empty.style.display='none';
       grid.innerHTML=rows.map(r=>{
         const badge=r.verified_purchase?'구매 확인':'체험 후기';
         const date=r.created_at?new Date(r.created_at).toLocaleDateString('ko-KR'):'';
@@ -1379,8 +1467,8 @@ window.addEventListener('focus',()=>setTimeout(loadFamilyProfiles,150));
       }).join('');
     }catch(e){
       console.error('후기 로드 실패',e);
-      if(stat)stat.textContent='후기 영역';
-      if(example)example.style.display='grid';
+      if(stat)stat.textContent='';
+      const empty=document.getElementById('reviewEmpty'); if(empty) empty.style.display='none';
     }
   }
   document.addEventListener('DOMContentLoaded',loadPublicReviews);
