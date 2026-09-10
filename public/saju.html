@@ -771,7 +771,9 @@ async function persistFreeResult(){
     };
     const {data:calcData,error:calcError}=await familySupabase
       .from('saju_calculations')
-      .insert(calcPayload)
+      .upsert(calcPayload,{
+        onConflict:'birth_profile_id,engine_version,correction_policy'
+      })
       .select('id').single();
     if(calcError)throw calcError;
 
@@ -1555,4 +1557,5 @@ window.addEventListener('focus',()=>setTimeout(loadFamilyProfiles,150));
 <script src="/auth-state-fix.js?v=20260910"></script>
 <script src="/member-test-checkout.js?v=20260910b"></script>
 </body></html>
+
 
