@@ -1111,16 +1111,10 @@ async function confirmCheckout(){
 
     closeModal();
 
-    alert(
-      '비회원 무료 테스트 주문이 생성되었습니다.\n\n'+
-      '실제 결제: 0원\n'+
-      '상품: '+result.product.name+'\n'+
-      'DB 상품가격: '+Number(result.listed_amount_krw).toLocaleString()+'원\n'+
-      '주문번호: '+result.merchant_uid+'\n'+
-      '상태: '+result.status
-    );
-
     console.log('[SAJU TEST ORDER]',result);
+
+    // 주문 성공 즉시 비회원 전용 구매/리포트 페이지로 이동
+    location.href='/guest-report.html?token='+encodeURIComponent(result.guest_token);
 
   }catch(err){
     console.error(err);

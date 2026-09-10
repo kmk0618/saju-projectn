@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>비회원 주문 · 나의사주</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f8f7f3;color:#171717;font-family:Pretendard,"Noto Sans KR",Arial,sans-serif}
+.wrap{max-width:820px;margin:0 auto;padding:48px 20px 80px}.brand{font-size:14px;font-weight:900;letter-spacing:.12em;color:#b18719;margin-bottom:22px}
+.hero{background:#111;color:#fff;border-radius:28px;padding:32px;margin-bottom:18px;box-shadow:0 20px 60px rgba(0,0,0,.12)}
+.hero h1{margin:0 0 12px;font-size:30px;line-height:1.25}.hero p{margin:0;color:#d9d9d9;line-height:1.75}
+.badge{display:inline-flex;margin-top:18px;padding:8px 12px;border-radius:999px;background:#fff2b8;color:#6f5300;font-size:12px;font-weight:900}
+.card{background:white;border:1px solid #e9e5dc;border-radius:22px;padding:26px;margin-top:16px;box-shadow:0 8px 28px rgba(0,0,0,.04)}
+.row{display:flex;gap:18px;justify-content:space-between;padding:13px 0;border-bottom:1px solid #efede7}.row:last-child{border-bottom:0}.k{color:#777;font-size:14px}.v{font-weight:800;text-align:right;word-break:break-all}
+.question{padding:18px;background:#fff8dc;border:1px solid #eedb93;border-radius:16px;line-height:1.75;margin-top:10px}
+.progress{height:10px;background:#ece9e0;border-radius:999px;overflow:hidden;margin:18px 0 8px}.bar{height:100%;width:22%;background:#e0b31f;border-radius:999px}
+.statusTitle{font-size:20px;font-weight:900}.muted{color:#777;line-height:1.7;font-size:14px}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.btn{border:0;border-radius:13px;padding:13px 18px;font-weight:900;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.primary{background:#111;color:#fff}.secondary{background:#f1eee5;color:#222}
+.err{background:#fff0ef;border:1px solid #ffc8c3;color:#a42a20;padding:18px;border-radius:16px;line-height:1.7}
+.loading{padding:60px 20px;text-align:center;color:#777}.spin{width:32px;height:32px;border:3px solid #ddd;border-top-color:#111;border-radius:50%;margin:0 auto 16px;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}
+@media(max-width:560px){.wrap{padding-top:24px}.hero{padding:24px}.hero h1{font-size:25px}.row{display:block}.v{text-align:left;margin-top:6px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">나의사주 · GUEST REPORT</div>
+  <div id="app" class="loading"><div class="spin"></div>주문 정보를 확인하고 있습니다.</div>
+</div>
+<script>
+const app=document.getElementById('app');
+const params=new URLSearchParams(location.search);
+let token=params.get('token')||'';
+
+if(!token){
+  try{
+    const saved=JSON.parse(localStorage.getItem('saju_test_guest_order')||'null');
+    if(saved?.guest_token){
+      token=saved.guest_token;
+      history.replaceState(null,'',location.pathname+'?token='+encodeURIComponent(token));
+    }
+  }catch(e){}
+}
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function money(n){return Number(n||0).toLocaleString('ko-KR')+'원'}
+function dateK(v){if(!v)return '-'; try{return new Date(v).toLocaleString('ko-KR')}catch(e){return v}}
+function statusLabel(report,order){
+  if(report?.status==='completed') return ['리포트 완성','100%'];
+  if(report?.status==='generating') return ['리포트 생성 중','68%'];
+  if(report?.status==='failed') return ['리포트 생성 오류','100%'];
+  if(order?.status==='paid') return ['결제 확인 완료 · 리포트 생성 대기','22%'];
+  return ['주문 확인 중','10%'];
+}
+
+async function load(){
+  if(!token){
+    app.innerHTML='<div class="err"><b>열람 링크가 없습니다.</b><br>구매 완료 후 받은 비회원 전용 링크로 접속해주세요.</div>';
+    return;
+  }
+  try{
+    const r=await fetch('/api/guest-order?token='+encodeURIComponent(token),{cache:'no-store'});
+    const d=await r.json();
+    if(!r.ok||!d.ok) throw new Error(d.error||'조회 실패');
+    const o=d.order, rep=d.report;
+    const [st,pct]=statusLabel(rep,o);
+    const p=o.product||{};
+    const i=o.input||{};
+    const birth=(i.y&&i.m&&i.d)?`${i.y}.${i.m}.${i.d}`:'입력정보 저장됨';
+    const time=i.unknown_time?'시간 모름':(i.h?`${i.h}:${i.mi||'00'}`:'-');
+
+    app.className='';
+    app.innerHTML=`
+      <section class="hero">
+        <h1>${esc(p.name||'구매 리포트')}</h1>
+        <p>비회원 구매 내역과 리포트 생성 상태를 확인하는 전용 페이지입니다.</p>
+        ${o.is_test?'<span class="badge">0원 테스트 주문</span>':''}
+      </section>
+
+      <section class="card">
+        <div class="statusTitle">${esc(st)}</div>
+        <div class="progress"><div class="bar" style="width:${pct}"></div></div>
+        <div class="muted">${
+          rep?.status==='completed'
+          ? '리포트 생성이 완료되었습니다.'
+          : rep?.status==='generating'
+          ? '개인 명식과 구매 상품에 맞춰 리포트를 생성하고 있습니다.'
+          : '주문은 정상 확인됐습니다. 다음 단계에서 사주 계산과 리포트 자동 생성을 연결하면 이 화면에서 바로 결과를 볼 수 있습니다.'
+        }</div>
+      </section>
+
+      <section class="card">
+        <div class="row"><div class="k">주문번호</div><div class="v">${esc(o.merchant_uid)}</div></div>
+        <div class="row"><div class="k">구매 이메일</div><div class="v">${esc(o.guest_email_masked)}</div></div>
+        <div class="row"><div class="k">판매가</div><div class="v">${money(o.listed_amount_krw)}</div></div>
+        <div class="row"><div class="k">실제 결제</div><div class="v">${money(o.charged_amount_krw)}</div></div>
+        <div class="row"><div class="k">주문 상태</div><div class="v">${esc(o.status)}</div></div>
+        <div class="row"><div class="k">주문 일시</div><div class="v">${esc(dateK(o.created_at))}</div></div>
+      </section>
+
+      <section class="card">
+        <div class="statusTitle">입력한 정보</div>
+        <div class="row"><div class="k">생년월일</div><div class="v">${esc(birth)}</div></div>
+        <div class="row"><div class="k">출생시간</div><div class="v">${esc(time)}</div></div>
+        <div class="row"><div class="k">질문 분야</div><div class="v">${esc(i.qcat||'-')}</div></div>
+        ${i.question?`<div class="question"><b>내 질문</b><br>${esc(i.question)}</div>`:''}
+      </section>
+
+      <section class="card">
+        <div class="statusTitle">내 리포트</div>
+        ${rep
+          ? `<div class="row"><div class="k">제목</div><div class="v">${esc(rep.title)}</div></div>
+             <div class="row"><div class="k">생성 상태</div><div class="v">${esc(rep.status)}</div></div>
+             ${rep.summary?`<div class="question">${esc(rep.summary)}</div>`:''}`
+          : `<p class="muted">아직 reports 테이블에 생성된 리포트가 없습니다. 주문 자체는 정상적으로 저장되어 있습니다.</p>`
+        }
+        <div class="btns">
+          <button class="btn primary" onclick="location.reload()">상태 새로고침</button>
+          <a class="btn secondary" href="/saju.html">홈으로</a>
+        </div>
+      </section>
+    `;
+  }catch(e){
+    app.className='';
+    app.innerHTML=`<div class="err"><b>주문을 불러오지 못했습니다.</b><br>${esc(e.message)}<br><br>열람 링크가 올바른지 확인해주세요.</div>`;
+  }
+}
+load();
+</script>
+</body>
+</html>
