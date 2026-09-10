@@ -4,9 +4,9 @@ import { calcSaju } from "@/lib/saju-engine";
 import { REPORT_OUTLINE, REPORT_TOTAL_SECTIONS } from "@/lib/report-outline";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
-const BATCH_SIZE = 6;
+const BATCH_SIZE = 12;
 const PROMPT_VERSION = "life-report-132-v1";
 const DEFAULT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-luna";
 
@@ -111,7 +111,7 @@ async function generateSectionsWithOpenAI(args: {
     section_title: x.section_title,
   }));
 
-  const system = `당신은 대한민국 명리학 개인 리포트 전문 해설가입니다. 계산은 절대 하지 않습니다. 제공된 deterministic 계산 JSON만 사실값으로 사용합니다.\n\n규칙:\n1. 사주 원국, 대운, 오행, 십성, 신살을 임의로 만들거나 수정하지 마세요.\n2. 섹션마다 서로 다른 근거와 생활 장면을 사용하세요. 반복 템플릿 금지.\n3. 한자 용어는 처음 등장할 때 한국어 설명을 바로 붙이세요. 예: 己土(기토).\n4. 건강 내용은 생활 리듬과 전통적 참고 수준으로만 쓰고 진단하지 마세요.\n5. 운세는 단정적 예언이 아니라 경향, 기회, 주의 시점, 행동 기준으로 표현하세요.\n6. 각 섹션은 실제 유료 리포트 품질로 4~6개 문단, 약 650~1000자 분량으로 작성하세요.\n7. 사용자의 질문이 관련되는 섹션에서는 질문을 구체적으로 연결하세요.\n8. content_html에는 <p>, <strong>, <ul>, <li> 정도만 사용하고 제목 태그는 넣지 마세요.`;
+  const system = `당신은 대한민국 명리학 개인 리포트 전문 해설가입니다. 계산은 절대 하지 않습니다. 제공된 deterministic 계산 JSON만 사실값으로 사용합니다.\n\n규칙:\n1. 사주 원국, 대운, 오행, 십성, 신살을 임의로 만들거나 수정하지 마세요.\n2. 섹션마다 서로 다른 근거와 생활 장면을 사용하세요. 반복 템플릿 금지.\n3. 한자 용어는 처음 등장할 때 한국어 설명을 바로 붙이세요. 예: 己土(기토).\n4. 건강 내용은 생활 리듬과 전통적 참고 수준으로만 쓰고 진단하지 마세요.\n5. 운세는 단정적 예언이 아니라 경향, 기회, 주의 시점, 행동 기준으로 표현하세요.\n6. 각 섹션은 실제 유료 리포트 품질로 4~6개 문단, 약 550~850자 분량으로 작성하세요.\n7. 사용자의 질문이 관련되는 섹션에서는 질문을 구체적으로 연결하세요.\n8. content_html에는 <p>, <strong>, <ul>, <li> 정도만 사용하고 제목 태그는 넣지 마세요.`;
 
   const user = `아래 계산값과 사용자 질문을 기준으로 지정된 섹션만 작성하세요.\n\n[고정 계산값]\n${JSON.stringify(compactCalc)}\n\n[사용자 질문]\n분야: ${args.category || "미지정"}\n질문: ${args.question || "별도 질문 없음"}\n\n[이번에 작성할 섹션]\n${JSON.stringify(requested)}\n\n반드시 요청된 section_no 각각을 정확히 한 번씩 반환하세요.`;
 
@@ -158,7 +158,7 @@ async function generateSectionsWithOpenAI(args: {
           schema
         }
       },
-      max_output_tokens: 9000
+      max_output_tokens: 18000
     })
   });
 
