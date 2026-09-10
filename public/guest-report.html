@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
@@ -7,7 +7,7 @@
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#f8f7f3;color:#171717;font-family:Pretendard,"Noto Sans KR",Arial,sans-serif}
-.wrap{max-width:900px;margin:auto;padding:28px 18px 70px}
+.wrap{max-width:900px;margin:0 auto;padding:28px 18px 70px}
 .brand{font-size:14px;font-weight:900;letter-spacing:.1em;color:#b18719;margin-bottom:18px}
 .hero{background:#111;color:#fff;border-radius:28px;padding:34px}
 .hero h1{margin:0 0 10px;font-size:34px}
@@ -16,19 +16,15 @@ body{margin:0;background:#f8f7f3;color:#171717;font-family:Pretendard,"Noto Sans
 .card{background:#fff;border:1px solid #e8e3d9;border-radius:22px;padding:28px;margin-top:16px}
 .title{font-size:24px;font-weight:900}
 .progressTop{display:flex;justify-content:space-between;align-items:end;gap:12px;margin-top:24px}
-.stage{font-weight:900;font-size:17px}
-.pct{font-size:38px;font-weight:900;color:#b18719}
+.stage{font-weight:900;font-size:17px}.pct{font-size:38px;font-weight:900;color:#b18719}
 .track{height:14px;background:#ebe6da;border-radius:999px;overflow:hidden;margin-top:12px}
 .fill{height:100%;background:linear-gradient(90deg,#efc52e,#d19e00);border-radius:999px;transition:width .6s ease}
 .meta{margin-top:11px;color:#777}
 .notice{margin-top:22px;background:#fff7d5;border:1px solid #e8ca64;border-radius:15px;padding:15px 17px;font-weight:800;line-height:1.65}
+.speed{margin-top:12px;color:#777;font-size:13px;line-height:1.7}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
-.btn{padding:17px;border-radius:15px;text-decoration:none;font-weight:900;text-align:center}
-.view{background:#111;color:#fff}.pdf{background:#e8b914;color:#171100}
+.btn{padding:17px;border-radius:15px;text-decoration:none;font-weight:900;text-align:center}.view{background:#111;color:#fff}.pdf{background:#e8b914;color:#171100}
 .err{margin-top:18px;background:#fff0ef;border:1px solid #ffc7c1;color:#a32a20;padding:17px;border-radius:15px;line-height:1.65;white-space:pre-wrap}
-.steps{margin-top:20px;display:grid;gap:9px}
-.step{padding:12px 14px;border:1px solid #eee8db;background:#faf8f2;border-radius:14px;font-size:13px}
-.step.done{background:#f1efe8}.step.on{background:#fff8d9;border-color:#e8cf72;font-weight:900}
 @media(max-width:620px){.wrap{padding:14px 12px 55px}.hero{border-radius:22px;padding:24px}.hero h1{font-size:27px}.actions{grid-template-columns:1fr}.pct{font-size:32px}}
 </style>
 </head>
@@ -41,93 +37,67 @@ body{margin:0;background:#f8f7f3;color:#171717;font-family:Pretendard,"Noto Sans
 <script>
 const app=document.getElementById('app');
 const token=new URLSearchParams(location.search).get('token')||'';
-let pdfCreating=false;
 
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+let generateInFlight=false;
+let generateRetryTimer=null;
+let currentName='종합 인생 리포트';
+let isTest=false;
+let stopped=false;
 
-function stepsHtml(stage){
-  const steps=[
-    '입력정보 확인 · 주문과 출생정보를 확인합니다.',
-    '만세력 계산 · 원국·대운·세운을 계산합니다.',
-    '핵심 분석 · 성향·관계·직업·재물의 근거를 정리합니다.',
-    '개인맞춤 리포트 작성 · 132개 질문을 개인 계산값과 연결해 작성합니다.',
-    'PDF 제작 · 작성된 리포트를 최종 PDF 한 파일로 제작합니다.'
-  ];
-  return `<div class="steps">${
-    steps.map((x,i)=>`<div class="step ${i<stage?'done':i===stage?'on':''}">${i<stage?'✓ ':''}${x}</div>`).join('')
-  }</div>`;
+function esc(s){
+  return String(s??'').replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
 }
 
-async function getState(){
-  const r=await fetch('/api/guest-order?token='+encodeURIComponent(token),{cache:'no-store'});
-  const raw=await r.text();
-  let d; try{d=JSON.parse(raw)}catch{throw new Error('주문 상태 응답 오류')}
-  if(!r.ok||!d.ok)throw new Error(d.error||'주문 조회 실패');
-  return d;
-}
-
-async function createPdf(){
-  if(pdfCreating)return;
-  pdfCreating=true;
-  try{
-    const r=await fetch('/api/report/pdf?token='+encodeURIComponent(token),{cache:'no-store'});
-    const ct=r.headers.get('content-type')||'';
-    if(r.ok && ct.includes('application/pdf')){
-      // PDF creation finished. We don't need to consume the whole file here.
-      pdfCreating=false;
-      setTimeout(render,500);
-      return;
-    }
-    const raw=await r.text();
-    let msg=raw;
-    try{
-      const d=JSON.parse(raw);
-      msg=(d.error||'PDF 생성 실패')+(d.detail?' : '+d.detail:'');
-    }catch{}
-    throw new Error(msg);
-  }catch(e){
-    pdfCreating=false;
-    showPdfError(e.message||String(e));
-    setTimeout(render,8000);
-  }
-}
-
-function shell(name,isTest,done){
+function shell(done=false){
   return `<section class="hero">
-    <h1>${esc(name||'종합 인생 리포트')}</h1>
-    <p>${done?'개인맞춤 리포트가 완성되었습니다.':'주문 즉시 개인맞춤 분석이 시작되며, 전체 리포트 생성에는 약 3~5분이 소요됩니다.'}</p>
+    <h1>${esc(currentName)}</h1>
+    <p>${done
+      ? '개인맞춤 리포트가 완성되었습니다.'
+      : '주문 즉시 개인맞춤 분석이 시작됩니다. 병렬 생성 방식으로 빠르게 작성하고 있습니다.'}</p>
     ${isTest?'<span class="badge">0원 테스트 주문</span>':''}
   </section>`;
 }
 
-function showProgress(name,isTest,pct,completed,total,stage){
-  app.innerHTML=shell(name,isTest,false)+`
+function renderProgress(pct,completed,total,phase){
+  let label='개인맞춤 리포트 작성 중';
+  if(completed===0) label='입력정보·만세력 확인 중';
+  if(phase==='pdf_queued' || phase==='pdf_generating' || completed>=132) label='PDF 제작 중';
+
+  app.innerHTML=shell(false)+`
     <section class="card">
       <div class="title">리포트 생성 중</div>
-      <div class="progressTop"><div class="stage">${stage===4?'PDF 제작 중':'개인맞춤 리포트 작성 중'}</div><div class="pct">${pct}%</div></div>
+      <div class="progressTop">
+        <div class="stage">${label}</div>
+        <div class="pct">${pct}%</div>
+      </div>
       <div class="track"><div class="fill" style="width:${pct}%"></div></div>
       <div class="meta">실제 생성 진행률 · ${completed} / ${total}개 섹션 완료</div>
-      <div class="notice">${stage===4
-        ? '본문 132개 작성이 완료되었습니다. 지금 최종 PDF 한 파일을 제작하고 있습니다.'
-        : '주문 즉시 분석이 시작됩니다. 전체 개인맞춤 리포트와 PDF 제작까지 약 3~5분이 소요됩니다.'}
+      <div class="notice">
+        주문 즉시 분석이 시작됩니다. 현재는 여러 구간을 동시에 작성하는 병렬 방식으로 생성합니다.
       </div>
-      ${stepsHtml(stage)}
-      <div id="pdfErr"></div>
+      <div class="speed">
+        생성 속도는 API 응답 상황에 따라 달라질 수 있으며, 완료된 구간은 즉시 저장됩니다.
+        페이지를 닫았다 다시 열어도 남은 구간부터 이어집니다.
+      </div>
+      <div id="runtimeError"></div>
     </section>`;
 }
 
-function showPdfError(msg){
-  const el=document.getElementById('pdfErr');
-  if(el) el.innerHTML=`<div class="err"><b>PDF 제작 재시도 중</b><br>${esc(msg)}</div>`;
-}
-
-function showDone(name,isTest){
-  app.innerHTML=shell(name,isTest,true)+`
+function renderDone(){
+  stopped=true;
+  app.innerHTML=shell(true)+`
     <section class="card">
       <div class="title">리포트 완성</div>
-      <div class="progressTop"><div class="stage">모든 작업 완료</div><div class="pct">100%</div></div>
+      <div class="progressTop">
+        <div class="stage">PDF 제작까지 모든 작업 완료</div>
+        <div class="pct">100%</div>
+      </div>
       <div class="track"><div class="fill" style="width:100%"></div></div>
-      <div class="notice">리포트 바로보기와 PDF 다운로드는 서버에서 생성된 동일한 개인맞춤 PDF 파일을 사용합니다.</div>
+      <div class="notice">
+        리포트 바로보기와 PDF 다운로드는 서버에서 생성된 동일한 개인맞춤 PDF 파일을 사용합니다.
+      </div>
       <div class="actions">
         <a class="btn view" href="/api/report/pdf?token=${encodeURIComponent(token)}">리포트 바로보기</a>
         <a class="btn pdf" href="/api/report/pdf?token=${encodeURIComponent(token)}&download=1">PDF 다운로드</a>
@@ -135,42 +105,144 @@ function showDone(name,isTest){
     </section>`;
 }
 
-async function render(){
-  if(!token){app.innerHTML='<div class="err">열람 토큰이 없습니다.</div>';return}
-  try{
-    const d=await getState();
-    const o=d.order||{}, rep=d.report||{}, rj=rep.report_json||{};
-    const name=o.product?.name||'종합 인생 리포트';
-    const isTest=!!o.is_test;
-    const completed=Number(rj.completed_sections||d.sections?.length||0);
-    const total=Number(rj.total_sections||132);
-    const pdfReady=!!rj.pdf_storage_path && rj.pdf_ready!==false;
-
-    if(rep.status==='completed' && pdfReady){
-      showDone(name,isTest);
-      return;
-    }
-
-    if(completed>=132 && !pdfReady){
-      // 핵심 수정: 132/132여도 PDF가 없으면 100%로 표시하지 않음.
-      // 97%에서 PDF 제작 중으로 두고 서버 PDF 생성 API를 자동 호출.
-      showProgress(name,isTest,97,132,132,4);
-      createPdf();
-      return;
-    }
-
-    const pct=Math.max(12,Math.min(95,Number(rj.progress||Math.round((completed/132)*95)||12)));
-    const stage=completed>0?3:0;
-    showProgress(name,isTest,pct,completed,total,stage);
-  }catch(e){
-    app.innerHTML=`<div class="err"><b>리포트 상태를 불러오지 못했습니다.</b><br>${esc(e.message||String(e))}</div>`;
+function showError(message){
+  const box=document.getElementById('runtimeError');
+  if(box){
+    box.innerHTML=`<div class="err"><b>생성 재시도 중</b><br>${esc(message)}</div>`;
   }
 }
 
-render();
-setInterval(render,5000);
+async function getState(){
+  const r=await fetch('/api/guest-order?token='+encodeURIComponent(token),{
+    cache:'no-store'
+  });
+
+  const raw=await r.text();
+  let d=null;
+  try{ d=raw?JSON.parse(raw):null; }catch{}
+
+  if(!r.ok || !d?.ok){
+    throw new Error((d?.error||'주문 상태 조회 실패')+(d?.detail?' : '+d.detail:''));
+  }
+
+  return d;
+}
+
+async function ensurePdf(){
+  const r=await fetch('/api/report/pdf?token='+encodeURIComponent(token),{
+    cache:'no-store'
+  });
+
+  if(r.ok && (r.headers.get('content-type')||'').includes('application/pdf')){
+    return true;
+  }
+
+  const raw=await r.text();
+  let d=null;
+  try{ d=raw?JSON.parse(raw):null; }catch{}
+
+  throw new Error((d?.error||'PDF 생성 실패')+(d?.detail?' : '+d.detail:''));
+}
+
+async function launchParallelGeneration(){
+  if(generateInFlight || stopped) return;
+
+  generateInFlight=true;
+
+  try{
+    const r=await fetch('/api/report/generate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({token})
+    });
+
+    const raw=await r.text();
+    let d=null;
+    try{ d=raw?JSON.parse(raw):null; }catch{}
+
+    if(!r.ok || !d?.ok){
+      throw new Error((d?.error||'리포트 생성 실패')+(d?.detail?' : '+d.detail:''));
+    }
+
+  }catch(e){
+    console.error('[PARALLEL REPORT GENERATION]',e);
+    showError(e.message||String(e));
+  }finally{
+    generateInFlight=false;
+
+    if(!stopped){
+      clearTimeout(generateRetryTimer);
+      generateRetryTimer=setTimeout(launchParallelGeneration,1500);
+    }
+  }
+}
+
+async function poll(){
+  if(!token){
+    app.innerHTML='<div class="err">열람 토큰이 없습니다.</div>';
+    return;
+  }
+
+  try{
+    const d=await getState();
+    const o=d.order||{};
+    const rep=d.report||null;
+    const j=rep?.report_json||{};
+
+    currentName=o.product?.name||'종합 인생 리포트';
+    isTest=!!o.is_test;
+
+    const completed=Number(j.completed_sections ?? d.sections?.length ?? 0);
+    const total=Number(j.total_sections||132);
+    const pdfReady=
+      rep?.status==='completed' &&
+      !!j.pdf_storage_path &&
+      j.pdf_ready!==false;
+
+    if(pdfReady){
+      renderDone();
+      return;
+    }
+
+    if(completed>=132){
+      renderProgress(97,132,132,j.phase||'pdf_queued');
+
+      try{
+        await ensurePdf();
+        setTimeout(poll,500);
+      }catch(e){
+        showError(e.message||String(e));
+        setTimeout(poll,5000);
+      }
+      return;
+    }
+
+    const pct=Math.max(
+      12,
+      Math.min(
+        95,
+        Number(j.progress || Math.round(18 + (completed/132)*77))
+      )
+    );
+
+    renderProgress(pct,completed,total,j.phase||'');
+
+    // Start generation in background. Polling remains independent, so the
+    // percentage can update while the long generation request is still running.
+    launchParallelGeneration();
+
+    setTimeout(poll,2000);
+
+  }catch(e){
+    app.innerHTML=shell(false)+`
+      <section class="card">
+        <div class="err"><b>상태 확인 오류</b><br>${esc(e.message||String(e))}</div>
+      </section>`;
+    setTimeout(poll,5000);
+  }
+}
+
+poll();
 </script>
-<script src="/report-autostart-fix.js?v=20260911a"></script>
 </body>
 </html>
-

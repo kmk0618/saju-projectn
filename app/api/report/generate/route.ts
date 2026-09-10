@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calcSaju } from "@/lib/saju-engine";
 import { REPORT_OUTLINE, REPORT_TOTAL_SECTIONS } from "@/lib/report-outline";
@@ -6,8 +6,8 @@ import { REPORT_OUTLINE, REPORT_TOTAL_SECTIONS } from "@/lib/report-outline";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const BATCH_SIZE = 12;
-const PROMPT_VERSION = "life-report-132-v1";
+const PARALLEL_WORKERS = 6;
+const PROMPT_VERSION = "life-report-132-parallel-v2";
 const DEFAULT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-luna";
 
 function admin() {
@@ -275,102 +275,320 @@ async function ensureInitialized(sb: any, order: any, input: any) {
   return { birthProfileId, questionId, calcRow, report };
 }
 
+
 export async function POST(req: Request) {
   const sb = admin();
+
   try {
     const body = await req.json().catch(() => ({}));
     const token = String(body?.token || "").trim();
-    if (!/^[0-9a-fA-F-]{36}$/.test(token)) return J({ ok:false, error:"INVALID_TOKEN" },400);
 
-    const { data: order, error: orderError } = await sb.from("orders")
+    if (!/^[0-9a-fA-F-]{36}$/.test(token)) {
+      return J({ ok:false, error:"INVALID_TOKEN" }, 400);
+    }
+
+    const { data: order, error: orderError } = await sb
+      .from("orders")
       .select("id,user_id,product_id,birth_profile_id,question_id,status,payment_payload,guest_access_token,products(slug,name,report_type)")
-      .eq("guest_access_token", token).maybeSingle();
-    if (orderError || !order) return J({ ok:false, error:"ORDER_NOT_FOUND" },404);
-    if (order.status !== "paid") return J({ ok:false, error:"ORDER_NOT_PAID" },409);
+      .eq("guest_access_token", token)
+      .maybeSingle();
+
+    if (orderError || !order) {
+      return J({ ok:false, error:"ORDER_NOT_FOUND" }, 404);
+    }
+
+    if (order.status !== "paid") {
+      return J({ ok:false, error:"ORDER_NOT_PAID" }, 409);
+    }
 
     const rawInput = (order.payment_payload as any)?.guest_input || {};
     const input = normalizeInput(rawInput);
     const init = await ensureInitialized(sb, order, input);
     const report = init.report;
 
-    if (report.status === "completed") {
-      return J({ ok:true, status:"completed", progress:100, completed_sections:REPORT_TOTAL_SECTIONS, total_sections:REPORT_TOTAL_SECTIONS, report_id:report.id });
+    const currentJson: any = report.report_json || {};
+
+    if (
+      report.status === "completed" &&
+      currentJson.pdf_storage_path &&
+      currentJson.pdf_ready !== false
+    ) {
+      return J({
+        ok:true,
+        status:"completed",
+        progress:100,
+        completed_sections:REPORT_TOTAL_SECTIONS,
+        total_sections:REPORT_TOTAL_SECTIONS,
+        report_id:report.id,
+        pdf_ready:true
+      });
     }
 
-    const { count, error: countError } = await sb.from("report_sections")
-      .select("id", { count:"exact", head:true }).eq("report_id", report.id);
-    if (countError) throw new Error("SECTION_COUNT_FAILED:" + countError.message);
-    const completed = count || 0;
+    // Count actual section numbers instead of assuming sequential completion.
+    // Parallel workers may finish out of order.
+    const { data: existingRows, error: existingError } = await sb
+      .from("report_sections")
+      .select("section_no")
+      .eq("report_id", report.id);
 
-    if (completed >= REPORT_TOTAL_SECTIONS) {
+    if (existingError) {
+      throw new Error("SECTION_LIST_FAILED:" + existingError.message);
+    }
+
+    const existingNos = new Set(
+      (existingRows || []).map((x:any) => Number(x.section_no))
+    );
+
+    const missingOutline = REPORT_OUTLINE.filter(
+      (x:any) => !existingNos.has(Number(x.section_no))
+    );
+
+    const alreadyCompleted = REPORT_TOTAL_SECTIONS - missingOutline.length;
+
+    // All text sections are done. Do not waste this function's time rendering PDF.
+    // guest-report will immediately call /api/report/pdf next.
+    if (missingOutline.length === 0) {
       await sb.from("reports").update({
-        status:"completed", generated_at:new Date().toISOString(),
-        report_json:{ total_sections:REPORT_TOTAL_SECTIONS, completed_sections:REPORT_TOTAL_SECTIONS, progress:100, phase:"completed" }
+        status:"generating",
+        generated_at:null,
+        report_json:{
+          ...currentJson,
+          total_sections:REPORT_TOTAL_SECTIONS,
+          completed_sections:REPORT_TOTAL_SECTIONS,
+          progress:97,
+          phase:"pdf_queued",
+          pdf_ready:false
+        },
+        generation_model:DEFAULT_MODEL,
+        prompt_version:PROMPT_VERSION,
+        error_message:null
       }).eq("id", report.id);
-      return J({ ok:true,status:"completed",progress:100,completed_sections:REPORT_TOTAL_SECTIONS,total_sections:REPORT_TOTAL_SECTIONS,report_id:report.id });
+
+      return J({
+        ok:true,
+        status:"generating",
+        progress:97,
+        completed_sections:REPORT_TOTAL_SECTIONS,
+        total_sections:REPORT_TOTAL_SECTIONS,
+        report_id:report.id,
+        pdf_ready:false,
+        phase:"pdf_queued"
+      });
     }
 
-    const batch = REPORT_OUTLINE.slice(completed, completed + BATCH_SIZE);
-    const generated = await generateSectionsWithOpenAI({
-      outline: batch as any,
-      calc: init.calcRow.calculation_json,
-      question: input.question,
-      category: input.category
+    // Split all remaining sections into up to 6 chunks and generate them concurrently.
+    // Example at 0/132: 6 workers x 22 sections.
+    const workerCount = Math.min(PARALLEL_WORKERS, missingOutline.length);
+    const chunks:any[][] = Array.from({ length: workerCount }, () => []);
+
+    missingOutline.forEach((item:any, index:number) => {
+      chunks[index % workerCount].push(item);
     });
-
-    const byNo = new Map(generated.map((x:any)=>[Number(x.section_no),x]));
-    const rows = batch.map((o:any) => {
-      const g:any = byNo.get(o.section_no);
-      if (!g?.content_html) throw new Error(`MISSING_GENERATED_SECTION_${o.section_no}`);
-      return {
-        report_id: report.id,
-        section_no: o.section_no,
-        part_no: o.part_no,
-        part_title: o.part_title,
-        section_title: o.section_title,
-        content_html: g.content_html,
-        content_json: { key_basis:g.key_basis || "", action_point:g.action_point || "" }
-      };
-    });
-
-    const { error: insertError } = await sb.from("report_sections").upsert(rows, { onConflict:"report_id,section_no" });
-    if (insertError) {
-      // If DB has no unique(report_id,section_no), fallback to plain insert after deleting this batch.
-      await sb.from("report_sections").delete().eq("report_id", report.id).gte("section_no", batch[0].section_no).lte("section_no", batch[batch.length-1].section_no);
-      const { error: insert2 } = await sb.from("report_sections").insert(rows);
-      if (insert2) throw new Error("SECTION_INSERT_FAILED:" + insert2.message);
-    }
-
-    const newCompleted = completed + rows.length;
-    const done = newCompleted >= REPORT_TOTAL_SECTIONS;
-    const progress = done ? 100 : Math.min(94, Math.round(28 + (newCompleted / REPORT_TOTAL_SECTIONS) * 64));
-    const phase = done ? "completed" : newCompleted < 24 ? "core_analysis" : newCompleted < 108 ? "writing" : "finalizing";
 
     await sb.from("reports").update({
-      status: done ? "completed" : "generating",
-      generated_at: done ? new Date().toISOString() : null,
-      report_json: { total_sections:REPORT_TOTAL_SECTIONS, completed_sections:newCompleted, progress, phase },
-      generation_model: DEFAULT_MODEL,
-      prompt_version: PROMPT_VERSION,
-      error_message: null
+      status:"generating",
+      generated_at:null,
+      report_json:{
+        ...currentJson,
+        total_sections:REPORT_TOTAL_SECTIONS,
+        completed_sections:alreadyCompleted,
+        progress:Math.max(12, Math.round(18 + (alreadyCompleted / REPORT_TOTAL_SECTIONS) * 74)),
+        phase:"parallel_writing",
+        parallel_workers:workerCount,
+        pdf_ready:false
+      },
+      generation_model:DEFAULT_MODEL,
+      prompt_version:PROMPT_VERSION,
+      error_message:null
     }).eq("id", report.id);
+
+    let completedCounter = alreadyCompleted;
+
+    const workerResults = await Promise.allSettled(
+      chunks.map(async (chunk:any[], workerIndex:number) => {
+        const generated = await generateSectionsWithOpenAI({
+          outline:chunk,
+          calc:init.calcRow.calculation_json,
+          question:input.question,
+          category:input.category
+        });
+
+        const byNo = new Map(
+          generated.map((x:any) => [Number(x.section_no), x])
+        );
+
+        const rows = chunk.map((o:any) => {
+          const g:any = byNo.get(Number(o.section_no));
+
+          if (!g?.content_html) {
+            throw new Error(`WORKER_${workerIndex + 1}_MISSING_SECTION_${o.section_no}`);
+          }
+
+          return {
+            report_id:report.id,
+            section_no:o.section_no,
+            part_no:o.part_no,
+            part_title:o.part_title,
+            section_title:o.section_title,
+            content_html:g.content_html,
+            content_json:{
+              key_basis:g.key_basis || "",
+              action_point:g.action_point || ""
+            }
+          };
+        });
+
+        const { error: upsertError } = await sb
+          .from("report_sections")
+          .upsert(rows, { onConflict:"report_id,section_no" });
+
+        if (upsertError) {
+          throw new Error(
+            `WORKER_${workerIndex + 1}_SECTION_SAVE_FAILED:` +
+            upsertError.message
+          );
+        }
+
+        completedCounter += rows.length;
+
+        const progress = Math.min(
+          95,
+          Math.round(18 + (completedCounter / REPORT_TOTAL_SECTIONS) * 77)
+        );
+
+        // Each worker writes its own progress as soon as it finishes.
+        // guest-report polls this while the main generation request is still running.
+        await sb.from("reports").update({
+          status:"generating",
+          report_json:{
+            total_sections:REPORT_TOTAL_SECTIONS,
+            completed_sections:completedCounter,
+            progress,
+            phase:"parallel_writing",
+            parallel_workers:workerCount,
+            last_finished_worker:workerIndex + 1,
+            pdf_ready:false
+          },
+          generation_model:DEFAULT_MODEL,
+          prompt_version:PROMPT_VERSION,
+          error_message:null
+        }).eq("id", report.id);
+
+        return {
+          worker:workerIndex + 1,
+          sections:rows.length
+        };
+      })
+    );
+
+    const failures = workerResults
+      .map((result:any, index:number) => {
+        if (result.status === "rejected") {
+          return {
+            worker:index + 1,
+            error:result.reason?.message || String(result.reason)
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    // Re-read the DB because some workers may have succeeded even if others failed.
+    const { count: finalCount, error: finalCountError } = await sb
+      .from("report_sections")
+      .select("id", { count:"exact", head:true })
+      .eq("report_id", report.id);
+
+    if (finalCountError) {
+      throw new Error("FINAL_SECTION_COUNT_FAILED:" + finalCountError.message);
+    }
+
+    const finalCompleted = finalCount || 0;
+
+    if (finalCompleted >= REPORT_TOTAL_SECTIONS) {
+      await sb.from("reports").update({
+        status:"generating",
+        generated_at:null,
+        report_json:{
+          total_sections:REPORT_TOTAL_SECTIONS,
+          completed_sections:REPORT_TOTAL_SECTIONS,
+          progress:97,
+          phase:"pdf_queued",
+          parallel_workers:workerCount,
+          pdf_ready:false
+        },
+        generation_model:DEFAULT_MODEL,
+        prompt_version:PROMPT_VERSION,
+        error_message:null
+      }).eq("id", report.id);
+
+      return J({
+        ok:true,
+        status:"generating",
+        progress:97,
+        completed_sections:REPORT_TOTAL_SECTIONS,
+        total_sections:REPORT_TOTAL_SECTIONS,
+        report_id:report.id,
+        pdf_ready:false,
+        phase:"pdf_queued",
+        parallel_workers:workerCount
+      });
+    }
+
+    // Partial success is intentionally returned as OK so the client can immediately
+    // call this endpoint again and retry only the still-missing sections.
+    const progress = Math.min(
+      95,
+      Math.round(18 + (finalCompleted / REPORT_TOTAL_SECTIONS) * 77)
+    );
+
+    await sb.from("reports").update({
+      status:"generating",
+      report_json:{
+        total_sections:REPORT_TOTAL_SECTIONS,
+        completed_sections:finalCompleted,
+        progress,
+        phase:"parallel_writing",
+        parallel_workers:workerCount,
+        pdf_ready:false
+      },
+      generation_model:DEFAULT_MODEL,
+      prompt_version:PROMPT_VERSION,
+      error_message:failures.length ? JSON.stringify(failures).slice(0,3000) : null
+    }).eq("id", report.id);
+
+    // If every worker failed, surface the error instead of silently looping forever.
+    if (finalCompleted === alreadyCompleted && failures.length === workerCount) {
+      throw new Error(
+        "ALL_PARALLEL_WORKERS_FAILED:" +
+        failures.map((x:any) => `W${x.worker} ${x.error}`).join(" | ").slice(0,2500)
+      );
+    }
 
     return J({
       ok:true,
-      status: done ? "completed" : "generating",
+      status:"generating",
       progress,
-      completed_sections:newCompleted,
+      completed_sections:finalCompleted,
       total_sections:REPORT_TOTAL_SECTIONS,
-      next_section: done ? null : newCompleted + 1,
-      report_id:report.id
+      report_id:report.id,
+      pdf_ready:false,
+      phase:"parallel_writing",
+      parallel_workers:workerCount,
+      failed_workers:failures.length
     });
+
   } catch (e:any) {
     console.error("REPORT_GENERATE_ERROR", e);
-    return J({ ok:false, error:"REPORT_GENERATION_FAILED", detail:e?.message || String(e) },500);
+
+    return J({
+      ok:false,
+      error:"REPORT_GENERATION_FAILED",
+      detail:e?.message || String(e)
+    }, 500);
   }
 }
 
 export async function GET() {
-  return J({ ok:true, route:"report/generate", batch_size:BATCH_SIZE, total_sections:REPORT_TOTAL_SECTIONS, model:DEFAULT_MODEL });
+  return J({ ok:true, route:"report/generate", mode:"parallel", parallel_workers:PARALLEL_WORKERS, total_sections:REPORT_TOTAL_SECTIONS, model:DEFAULT_MODEL });
 }
-
