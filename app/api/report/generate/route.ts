@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calcSaju } from "@/lib/saju-engine";
 import { REPORT_OUTLINE, REPORT_TOTAL_SECTIONS } from "@/lib/report-outline";
@@ -184,8 +184,8 @@ async function ensureInitialized(sb: any, order: any, input: any) {
     const birthDate = `${String(input.year).padStart(4,"0")}-${String(input.month).padStart(2,"0")}-${String(input.day).padStart(2,"0")}`;
     const birthTime = input.time_unknown || input.hour === null ? null : `${String(input.hour).padStart(2,"0")}:${String(input.minute).padStart(2,"0")}:00`;
     const { data: bp, error } = await sb.from("birth_profiles").insert({
-      user_id: null,
-      label: "비회원 본인",
+      user_id: order.user_id || null,
+      label: order.user_id ? "본인" : "비회원 본인",
       relationship: "self",
       gender: input.gender === "남" ? "male" : "female",
       calendar_type: input.calendar_type === "solar" ? "solar" : "lunar",
@@ -204,7 +204,7 @@ async function ensureInitialized(sb: any, order: any, input: any) {
 
   if (!questionId && input.question) {
     const { data: q, error } = await sb.from("questions").insert({
-      user_id: null,
+      user_id: order.user_id || null,
       birth_profile_id: birthProfileId,
       category: input.category || null,
       question_text: input.question,
@@ -235,7 +235,7 @@ async function ensureInitialized(sb: any, order: any, input: any) {
       input.region_name
     );
     const { data: c, error } = await sb.from("saju_calculations").insert({
-      user_id: null,
+      user_id: order.user_id || null,
       birth_profile_id: birthProfileId,
       engine_version: "manse-v3-deterministic",
       input_json: input,
@@ -255,7 +255,7 @@ async function ensureInitialized(sb: any, order: any, input: any) {
 
   if (!report) {
     const { data: r, error } = await sb.from("reports").insert({
-      user_id: null,
+      user_id: order.user_id || null,
       order_id: order.id,
       product_id: order.product_id,
       birth_profile_id: birthProfileId,
@@ -283,7 +283,7 @@ export async function POST(req: Request) {
     if (!/^[0-9a-fA-F-]{36}$/.test(token)) return J({ ok:false, error:"INVALID_TOKEN" },400);
 
     const { data: order, error: orderError } = await sb.from("orders")
-      .select("id,product_id,birth_profile_id,question_id,status,payment_payload,guest_access_token,products(slug,name,report_type)")
+      .select("id,user_id,product_id,birth_profile_id,question_id,status,payment_payload,guest_access_token,products(slug,name,report_type)")
       .eq("guest_access_token", token).maybeSingle();
     if (orderError || !order) return J({ ok:false, error:"ORDER_NOT_FOUND" },404);
     if (order.status !== "paid") return J({ ok:false, error:"ORDER_NOT_PAID" },409);
@@ -373,3 +373,4 @@ export async function POST(req: Request) {
 export async function GET() {
   return J({ ok:true, route:"report/generate", batch_size:BATCH_SIZE, total_sections:REPORT_TOTAL_SECTIONS, model:DEFAULT_MODEL });
 }
+
