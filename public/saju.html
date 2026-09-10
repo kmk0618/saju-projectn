@@ -1088,7 +1088,7 @@ async function confirmCheckout(){
       buyBtn.textContent='테스트 주문 만드는 중...';
     }
 
-    const response=await fetch('/api/test-guest-order',{
+    const response=await fetch('/api/test-guest-order-v2',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
@@ -1098,10 +1098,22 @@ async function confirmCheckout(){
       })
     });
 
-    const result=await response.json();
+    const rawText=await response.text();
+    let result=null;
+
+    try{
+      result=rawText ? JSON.parse(rawText) : null;
+    }catch(parseErr){
+      console.error('API NON-JSON RESPONSE:', rawText);
+      throw new Error('서버 응답 형식 오류 ('+response.status+')');
+    }
+
+    if(!result){
+      throw new Error('서버에서 빈 응답이 왔습니다 ('+response.status+')');
+    }
 
     if(!response.ok||!result.ok){
-      throw new Error(result.error||'TEST_ORDER_FAILED');
+      throw new Error((result.error||'TEST_ORDER_FAILED')+(result.detail?' : '+result.detail:''));
     }
 
     localStorage.setItem('saju_test_guest_order',JSON.stringify({
@@ -1110,10 +1122,7 @@ async function confirmCheckout(){
     }));
 
     closeModal();
-
     console.log('[SAJU TEST ORDER]',result);
-
-    // 주문 성공 즉시 비회원 전용 구매/리포트 페이지로 이동
     location.href='/guest-report.html?token='+encodeURIComponent(result.guest_token);
 
   }catch(err){
