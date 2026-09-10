@@ -1,3 +1,51 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>리포트 바로보기 · 나의사주</title>
-<style>*{box-sizing:border-box}body{margin:0;background:#f2efe8;color:#171717;font-family:Pretendard,"Noto Sans KR",Arial,sans-serif}.topbar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #e3ded4}.topinner{max-width:980px;margin:auto;padding:11px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px}.brand{font-weight:900;color:#b18719}.actions{display:flex;gap:8px}.btn{border:0;border-radius:11px;padding:10px 13px;font-weight:900;text-decoration:none;cursor:pointer;background:#111;color:#fff}.btn.gold{background:#e5b51c;color:#1b1604}.wrap{max-width:940px;margin:auto;padding:18px 14px 60px}.cover{background:#111;color:#fff;border-radius:24px;padding:34px;margin-bottom:16px}.cover h1{font-size:34px;margin:0 0 8px}.cover p{color:#ddd}.part{margin:28px 0 12px;padding:14px 18px;background:#e6b928;border-radius:15px;font-size:21px;font-weight:900}.section{background:#fff;border:1px solid #e5dfd4;border-radius:18px;padding:26px;margin:0 0 14px;box-shadow:0 5px 18px rgba(0,0,0,.035)}.no{font-size:12px;font-weight:900;color:#b18719;letter-spacing:.08em}.section h2{font-size:22px;margin:7px 0 16px}.content{font-size:15.5px;line-height:1.95}.content p{margin:0 0 14px}.content li{margin:5px 0}.loading{padding:60px;text-align:center}.err{background:#fff0ef;padding:18px;border-radius:14px;color:#a42a20}@media(max-width:620px){.wrap{padding:10px 0 50px}.cover{border-radius:0;padding:24px 16px}.cover h1{font-size:27px}.part{border-radius:0;margin-top:18px}.section{border-radius:0;border-left:0;border-right:0;padding:22px 16px;margin-bottom:8px}.section h2{font-size:20px}.content{font-size:15px}.topinner{padding:9px 10px}.brand{font-size:12px}.btn{font-size:12px;padding:9px 10px}}@media print{.topbar{display:none}.wrap{max-width:none;padding:0}.cover{border-radius:0;min-height:260mm;page-break-after:always}.part{page-break-before:always}.section{box-shadow:none;border:0;page-break-inside:avoid;margin:0 0 12mm}.actions{display:none}body{background:#fff}}</style></head>
-<body><div class="topbar"><div class="topinner"><div class="brand">나의사주 · REPORT VIEWER</div><div class="actions"><a id="back" class="btn" href="#">← 돌아가기</a><button class="btn gold" onclick="window.print()">PDF 저장</button></div></div></div><main class="wrap"><div id="app" class="loading">리포트를 불러오고 있습니다.</div></main><script>const token=new URLSearchParams(location.search).get('token')||'';document.getElementById('back').href='/guest-report.html?token='+encodeURIComponent(token);const app=document.getElementById('app');function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}async function load(){try{const r=await fetch('/api/guest-order?token='+encodeURIComponent(token),{cache:'no-store'});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||'조회 실패');if(d.report?.status!=='completed')throw new Error('아직 리포트 생성이 완료되지 않았습니다.');let lastPart=0;let html=`<section class="cover"><h1>${esc(d.report.title||d.order?.product?.name||'종합 인생 리포트')}</h1><p>132개 질문으로 구성한 개인맞춤 종합 사주 리포트</p></section>`;(d.sections||[]).forEach(s=>{if(s.part_no!==lastPart){lastPart=s.part_no;html+=`<div class="part">PART ${s.part_no}. ${esc(s.part_title||'')}</div>`}html+=`<article class="section"><div class="no">SECTION ${String(s.section_no).padStart(3,'0')}</div><h2>${esc(s.section_title)}</h2><div class="content">${s.content_html||''}</div></article>`});app.className='';app.innerHTML=html;if(new URLSearchParams(location.search).get('download')==='1')setTimeout(()=>window.print(),700)}catch(e){app.className='err';app.textContent=e.message}}load();</script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>리포트 바로보기 · 나의사주</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#f3f0e8;font-family:Pretendard,"Noto Sans KR",Arial,sans-serif}
+.topbar{height:70px;background:#fff;border-bottom:1px solid #e6e0d4;display:flex;align-items:center}
+.topinner{width:min(1280px,100%);margin:auto;padding:0 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand{font-weight:900;color:#b18719;letter-spacing:.06em}
+.actions{display:flex;gap:9px}
+.btn{border:0;border-radius:13px;padding:12px 16px;font-weight:900;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.back{background:#111;color:#fff}
+.save{background:#e8b914;color:#171100}
+.frameWrap{height:calc(100vh - 70px);padding:14px}
+.frame{width:100%;height:100%;border:0;background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+@media(max-width:700px){
+  .topbar{height:62px}.topinner{padding:0 10px}.brand{font-size:12px}
+  .btn{padding:10px 11px;font-size:12px}
+  .frameWrap{height:calc(100vh - 62px);padding:0}.frame{border-radius:0}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topinner">
+    <div class="brand">나의사주 · REPORT VIEWER</div>
+    <div class="actions">
+      <a id="back" class="btn back" href="/guest-report.html">← 돌아가기</a>
+      <a id="save" class="btn save" href="#">PDF 저장</a>
+    </div>
+  </div>
+</header>
+<main class="frameWrap">
+  <iframe id="frame" class="frame" title="개인맞춤 사주 리포트 PDF"></iframe>
+</main>
+<script>
+const token=new URLSearchParams(location.search).get('token')||'';
+if(!token){
+  document.body.innerHTML='<div style="padding:40px;font-family:sans-serif">열람 토큰이 없습니다.</div>';
+}else{
+  const pdf='/api/report/pdf?token='+encodeURIComponent(token);
+  document.getElementById('frame').src=pdf;
+  document.getElementById('save').href=pdf+'&download=1';
+  document.getElementById('back').href='/guest-report.html?token='+encodeURIComponent(token);
+}
+</script>
+</body>
+</html>
