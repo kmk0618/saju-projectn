@@ -985,14 +985,22 @@ let checkoutProduct=null;
 let checkoutIsGuest=false;
 
 function collectGuestCheckoutPayload(){
-  const ids=['name','y','m','d','h','mi','region','question','qcat','gender','calendar'];
-  const data={};
-  ids.forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) data[id]=el.type==='checkbox'?el.checked:el.value;
-  });
-  data.unknown_time=!!document.getElementById('hu')?.checked;
-  return data;
+  const regionEl=document.getElementById('region');
+  const regionOpt=regionEl?.options?.[regionEl.selectedIndex];
+  return {
+    y:document.getElementById('y')?.value||'',
+    m:document.getElementById('m')?.value||'',
+    d:document.getElementById('d')?.value||'',
+    h:document.getElementById('h')?.value||'',
+    mi:document.getElementById('mi')?.value||'0',
+    calendar_type:document.getElementById('cal')?.value||'solar',
+    gender:document.getElementById('g')?.value||'',
+    region:regionEl?.value||'',
+    region_name:regionOpt?.dataset?.name||regionOpt?.textContent?.trim()||'',
+    question:document.getElementById('question')?.value?.trim()||'',
+    qcat:document.getElementById('qcat')?.value||'',
+    unknown_time:!!document.getElementById('hu')?.checked
+  };
 }
 
 async function openProduct(name,price){
