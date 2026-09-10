@@ -8,41 +8,40 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:#f8f7f3;color:#171717;font-family:Pretendard,"Noto Sans KR",Arial,sans-serif}
-.wrap{max-width:980px;margin:0 auto;padding:36px 20px 90px}
-.brand{font-size:14px;font-weight:900;letter-spacing:.12em;color:#b18719;margin-bottom:22px}
-.hero{background:#111;color:#fff;border-radius:28px;padding:34px;margin-bottom:18px;box-shadow:0 20px 60px rgba(0,0,0,.12)}
-.hero h1{margin:0 0 12px;font-size:34px;line-height:1.25}
-.hero p{margin:0;color:#dedede;line-height:1.75}
-.badge{display:inline-flex;margin-top:18px;padding:8px 12px;border-radius:999px;background:#fff2b8;color:#6f5300;font-size:12px;font-weight:900}
-.card{background:white;border:1px solid #e9e5dc;border-radius:22px;padding:26px;margin-top:16px;box-shadow:0 8px 28px rgba(0,0,0,.04)}
-.row{display:flex;gap:18px;justify-content:space-between;padding:13px 0;border-bottom:1px solid #efede7}
-.row:last-child{border-bottom:0}
-.k{color:#777;font-size:14px}
-.v{font-weight:800;text-align:right;word-break:break-all}
-.question{padding:18px;background:#fff8dc;border:1px solid #eedb93;border-radius:16px;line-height:1.75;margin-top:12px}
-.statusTitle{font-size:22px;font-weight:900}
-.muted{color:#777;line-height:1.7;font-size:14px}
-.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.wrap{max-width:980px;margin:0 auto;padding:28px 20px 90px}
+.brand{font-size:14px;font-weight:900;letter-spacing:.12em;color:#b18719;margin-bottom:18px}
+.hero{background:#111;color:#fff;border-radius:28px;padding:32px;margin-bottom:16px;box-shadow:0 20px 60px rgba(0,0,0,.12)}
+.hero h1{margin:0 0 10px;font-size:32px;line-height:1.25}
+.hero p{margin:0;color:#dedede;line-height:1.7}
+.badge{display:inline-flex;margin-top:16px;padding:8px 12px;border-radius:999px;background:#fff2b8;color:#6f5300;font-size:12px;font-weight:900}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 18px;position:sticky;top:8px;z-index:20;background:rgba(248,247,243,.92);backdrop-filter:blur(8px);padding:8px 0}
 .btn{border:0;border-radius:13px;padding:13px 18px;font-weight:900;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
-.primary{background:#111;color:#fff}.secondary{background:#f1eee5;color:#222}
-.err{background:#fff0ef;border:1px solid #ffc8c3;color:#a42a20;padding:18px;border-radius:16px;line-height:1.7}
-.loading{padding:60px 20px;text-align:center;color:#777}
-.spin{width:32px;height:32px;border:3px solid #ddd;border-top-color:#111;border-radius:50%;margin:0 auto 16px;animation:s 1s linear infinite}
-@keyframes s{to{transform:rotate(360deg)}}
-.reportHead{margin-top:34px}
-.reportHead h2{font-size:28px;margin:0 0 8px}
-.section{background:#fff;border:1px solid #e8e2d5;border-radius:22px;padding:28px;margin-top:18px;box-shadow:0 8px 30px rgba(0,0,0,.035)}
-.secMeta{font-size:12px;font-weight:900;letter-spacing:.08em;color:#b18719;margin-bottom:9px}
-.section h3{font-size:23px;line-height:1.35;margin:0 0 16px}
-.section .content{font-size:16px;line-height:1.95;color:#403b34}
-.section .content p{margin:0 0 14px}
+.primary{background:#111;color:#fff}.gold{background:#e4b319;color:#1b1604}.secondary{background:#ece8de;color:#222}
+.card{background:white;border:1px solid #e9e5dc;border-radius:22px;padding:25px;margin-top:16px;box-shadow:0 8px 28px rgba(0,0,0,.04)}
+.statusTitle{font-size:22px;font-weight:900}.muted{color:#777;line-height:1.7;font-size:14px}
+.note{background:#fffaf0;border-left:4px solid #e2b321;padding:16px 18px;border-radius:12px;color:#655b44;line-height:1.75;margin-top:14px}
+.reportHead{margin-top:24px}.reportHead h2{font-size:28px;margin:0 0 8px}
+.section{background:#fff;border:1px solid #e8e2d5;border-radius:22px;padding:28px;margin-top:16px;box-shadow:0 8px 30px rgba(0,0,0,.035)}
 .partLabel{display:inline-flex;background:#fff4c9;border:1px solid #ecd58a;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900;margin-bottom:9px}
-.note{background:#fffaf0;border-left:4px solid #e2b321;padding:16px 18px;border-radius:12px;color:#655b44;line-height:1.75;margin-top:16px}
+.secMeta{font-size:12px;font-weight:900;letter-spacing:.08em;color:#b18719;margin-bottom:9px}
+.section h3{font-size:23px;line-height:1.35;margin:0 0 16px}.content{font-size:16px;line-height:1.95;color:#403b34}.content p{margin:0 0 14px}
+.row{display:flex;gap:18px;justify-content:space-between;padding:13px 0;border-bottom:1px solid #efede7}.row:last-child{border-bottom:0}.k{color:#777;font-size:14px}.v{font-weight:800;text-align:right;word-break:break-all}
+.question{padding:18px;background:#fff8dc;border:1px solid #eedb93;border-radius:16px;line-height:1.75;margin-top:12px}
+.detailsTitle{font-size:18px;font-weight:900;margin-bottom:8px}
+.loading{padding:60px 20px;text-align:center;color:#777}.spin{width:32px;height:32px;border:3px solid #ddd;border-top-color:#111;border-radius:50%;margin:0 auto 16px;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}
+.err{background:#fff0ef;border:1px solid #ffc8c3;color:#a42a20;padding:18px;border-radius:16px;line-height:1.7}
 @media(max-width:620px){
-  .wrap{padding-top:22px}
-  .hero{padding:25px}.hero h1{font-size:27px}
+  .wrap{padding:14px 12px 70px}
+  .brand{margin:6px 4px 12px}
+  .hero{padding:22px;border-radius:22px;margin-bottom:8px}
+  .hero h1{font-size:25px}.hero p{font-size:14px}
+  .actions{top:0;margin:8px 0 10px;padding:8px 0}
+  .actions .btn{flex:1;min-width:140px;padding:12px 10px;font-size:14px}
+  .reportHead{margin-top:12px;padding:0 4px}.reportHead h2{font-size:24px}
+  .section{padding:21px 18px;border-radius:18px;margin-top:12px}
+  .section h3{font-size:20px}.content{font-size:15.5px;line-height:1.9}
+  .orderMeta{margin-top:24px}
   .row{display:block}.v{text-align:left;margin-top:6px}
-  .section{padding:22px}.section h3{font-size:20px}
 }
 </style>
 </head>
@@ -51,10 +50,12 @@ body{margin:0;background:#f8f7f3;color:#171717;font-family:Pretendard,"Noto Sans
   <div class="brand">나의사주 · GUEST REPORT</div>
   <div id="app" class="loading"><div class="spin"></div>리포트를 불러오고 있습니다.</div>
 </div>
+
 <script>
 const app=document.getElementById('app');
 const params=new URLSearchParams(location.search);
 let token=params.get('token')||'';
+const TEST_PDF='/customer-reports/%EC%A2%85%ED%95%A9%EC%9D%B8%EC%83%9D%EB%A6%AC%ED%8F%AC%ED%8A%B8_%EA%B3%A0%EA%B0%9D%EC%9A%A9_75p.pdf';
 
 if(!token){
   try{
@@ -65,88 +66,49 @@ if(!token){
     }
   }catch(e){}
 }
-
-function esc(s){
-  return String(s??'').replace(/[&<>"']/g,c=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  }[c]))
-}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function money(n){return Number(n||0).toLocaleString('ko-KR')+'원'}
-function dateK(v){
-  if(!v)return '-';
-  try{return new Date(v).toLocaleString('ko-KR')}catch(e){return v}
-}
-function stripUnsafeHtml(html){
-  // content_html is generated by our server/database only.
-  // Remove obvious executable tags/attributes as a defensive layer.
-  return String(html||'')
-    .replace(/<script[\s\S]*?<\/script>/gi,'')
-    .replace(/\son\w+="[^"]*"/gi,'')
-    .replace(/\son\w+='[^']*'/gi,'');
-}
+function dateK(v){if(!v)return '-';try{return new Date(v).toLocaleString('ko-KR')}catch(e){return v}}
+function stripUnsafeHtml(html){return String(html||'').replace(/<script[\s\S]*?<\/script>/gi,'').replace(/\son\w+="[^"]*"/gi,'').replace(/\son\w+='[^']*'/gi,'')}
 
 async function load(){
   if(!token){
     app.innerHTML='<div class="err"><b>열람 링크가 없습니다.</b><br>구매 완료 후 받은 비회원 전용 링크로 접속해주세요.</div>';
     return;
   }
-
   try{
     const r=await fetch('/api/guest-order?token='+encodeURIComponent(token),{cache:'no-store'});
     const d=await r.json();
-
     if(!r.ok||!d.ok) throw new Error(d.error||'조회 실패');
 
-    const o=d.order;
-    const rep=d.report;
-    const sections=Array.isArray(d.sections)?d.sections:[];
-    const p=o.product||{};
-    const i=o.input||{};
+    const o=d.order, rep=d.report, sections=Array.isArray(d.sections)?d.sections:[];
+    const p=o.product||{}, i=o.input||{}, done=rep?.status==='completed';
     const birth=(i.y&&i.m&&i.d)?`${i.y}.${i.m}.${i.d}`:'입력정보 저장됨';
     const time=i.unknown_time?'시간 모름':(i.h?`${i.h}:${i.mi||'00'}`:'-');
-    const done=rep?.status==='completed';
 
     app.className='';
     app.innerHTML=`
       <section class="hero">
         <h1>${esc(rep?.title||p.name||'구매 리포트')}</h1>
-        <p>${done
-          ? '리포트 생성이 완료되었습니다. 아래에서 비회원 상태로 바로 읽을 수 있습니다.'
-          : '비회원 구매 내역과 리포트 생성 상태를 확인하는 전용 페이지입니다.'
-        }</p>
+        <p>${done?'리포트가 완성되었습니다. 모바일에서는 이 페이지에서 바로 읽고, 필요하면 PDF로 저장할 수 있습니다.':'리포트 생성 상태를 확인하는 비회원 전용 페이지입니다.'}</p>
         ${o.is_test?'<span class="badge">0원 테스트 주문</span>':''}
       </section>
 
-      <section class="card">
-        <div class="statusTitle">${done?'리포트 생성 완료':'결제 확인 완료 · 리포트 생성 대기'}</div>
-        <p class="muted">${done
-          ? `현재 ${sections.length}개 테스트 SECTION이 저장되어 있습니다.`
-          : '아직 reports 테이블에 완성된 리포트가 없습니다.'
-        }</p>
-        ${rep?.summary?`<div class="note">${esc(rep.summary)}</div>`:''}
-      </section>
-
-      <section class="card">
-        <div class="row"><div class="k">주문번호</div><div class="v">${esc(o.merchant_uid)}</div></div>
-        <div class="row"><div class="k">구매 이메일</div><div class="v">${esc(o.guest_email_masked)}</div></div>
-        <div class="row"><div class="k">판매가</div><div class="v">${money(o.listed_amount_krw)}</div></div>
-        <div class="row"><div class="k">실제 결제</div><div class="v">${money(o.charged_amount_krw)}</div></div>
-        <div class="row"><div class="k">주문 상태</div><div class="v">${esc(o.status)}</div></div>
-        <div class="row"><div class="k">주문 일시</div><div class="v">${esc(dateK(o.created_at))}</div></div>
-      </section>
-
-      <section class="card">
-        <div class="statusTitle">입력한 정보</div>
-        <div class="row"><div class="k">생년월일</div><div class="v">${esc(birth)}</div></div>
-        <div class="row"><div class="k">출생시간</div><div class="v">${esc(time)}</div></div>
-        <div class="row"><div class="k">질문 분야</div><div class="v">${esc(i.qcat||'-')}</div></div>
-        ${i.question?`<div class="question"><b>내 질문</b><br>${esc(i.question)}</div>`:''}
-      </section>
-
       ${done?`
-        <div class="reportHead">
+        <div class="actions">
+          <a class="btn primary" href="#reportStart">리포트 바로보기</a>
+          <a class="btn gold" href="${TEST_PDF}" download>고객용 PDF 다운로드</a>
+        </div>
+
+        <section class="card">
+          <div class="statusTitle">리포트 완성</div>
+          <p class="muted">현재 웹 화면에는 테스트 SECTION이 표시되지만, 다운로드되는 PDF는 실제 고객용 종합 인생 리포트 75페이지 완성본입니다.</p>
+          ${rep?.summary?`<div class="note">${esc(rep.summary)}</div>`:''}
+        </section>
+
+        <div class="reportHead" id="reportStart">
           <h2>나의 리포트</h2>
-          <div class="muted">아래 내용은 현재 구매→저장→계산값 저장→리포트 생성→열람 흐름을 확인하기 위한 테스트 생성본입니다.</div>
+          <div class="muted">모바일에서는 아래 웹 내용을 바로 읽을 수 있고, 고객용 75페이지 PDF도 별도로 열거나 저장할 수 있습니다.</div>
         </div>
 
         ${sections.map((s,idx)=>`
@@ -158,19 +120,28 @@ async function load(){
           </article>
         `).join('')}
 
-        <section class="card">
-          <div class="statusTitle">테스트 파이프라인 완료</div>
-          <p class="muted">
-            주문, 비회원 열람 토큰, 출생정보, 테스트 계산값, reports, report_sections 저장까지 실제 DB에서 연결되었습니다.
-            다음 단계에서는 이 테스트 12 SECTION을 운영용 만세력 엔진 + 최종 종합사주 132 SECTION 생성기로 교체하면 됩니다.
-          </p>
+        <section class="card orderMeta">
+          <div class="detailsTitle">구매 정보</div>
+          <div class="row"><div class="k">주문번호</div><div class="v">${esc(o.merchant_uid)}</div></div>
+          <div class="row"><div class="k">구매 이메일</div><div class="v">${esc(o.guest_email_masked)}</div></div>
+          <div class="row"><div class="k">판매가</div><div class="v">${money(o.listed_amount_krw)}</div></div>
+          <div class="row"><div class="k">실제 결제</div><div class="v">${money(o.charged_amount_krw)}</div></div>
+          <div class="row"><div class="k">주문 일시</div><div class="v">${esc(dateK(o.created_at))}</div></div>
+          <div class="row"><div class="k">생년월일</div><div class="v">${esc(birth)}</div></div>
+          <div class="row"><div class="k">출생시간</div><div class="v">${esc(time)}</div></div>
+          ${i.question?`<div class="question"><b>내 질문</b><br>${esc(i.question)}</div>`:''}
         </section>
-      `:''}
 
-      <div class="btns">
-        <button class="btn primary" onclick="location.reload()">상태 새로고침</button>
-        <a class="btn secondary" href="/saju.html">홈으로</a>
-      </div>
+        <div class="actions" style="position:static;background:transparent">
+          <a class="btn gold" href="${TEST_PDF}" download>고객용 PDF 다운로드</a>
+          <a class="btn secondary" href="/saju.html">홈으로</a>
+        </div>
+      `:`
+        <section class="card">
+          <div class="statusTitle">결제 확인 완료 · 리포트 생성 대기</div>
+          <p class="muted">아직 reports 테이블에 완성된 리포트가 없습니다.</p>
+        </section>
+      `}
     `;
   }catch(e){
     app.className='';
