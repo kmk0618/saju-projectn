@@ -187,7 +187,7 @@ export async function htmlToPdfBuffer(html: string) {
 
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0", timeout: 90000 });
+    await page.setContent(html, { waitUntil: "load", timeout: 90000 });
 
     // Make sure Korean webfont is fully ready before printing.
     await page.evaluate(async () => {
