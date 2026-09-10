@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>리포트 바로보기 · 나의사주</title>
+<style>
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:#f7f5ef;color:#171717;font-family:Pretendard,"Noto Sans KR",Arial,sans-serif}
+.topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-bottom:1px solid #e8e3d8}
+.topinner{max-width:980px;margin:0 auto;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-weight:900;color:#b18719;letter-spacing:.08em}
+.back{border:0;border-radius:12px;background:#111;color:#fff;text-decoration:none;padding:11px 14px;font-weight:900;font-size:14px}
+.wrap{max-width:980px;margin:0 auto;padding:28px 20px 90px}
+.reportHero{padding:30px 32px;background:#111;color:#fff;border-radius:26px;margin-bottom:18px}
+.reportHero h1{margin:0 0 8px;font-size:32px;line-height:1.3}
+.reportHero p{margin:0;color:#ddd;line-height:1.7}
+.section{background:#fff;border:1px solid #e8e2d5;border-radius:22px;padding:28px;margin-top:16px;box-shadow:0 8px 30px rgba(0,0,0,.035)}
+.partLabel{display:inline-flex;background:#fff4c9;border:1px solid #ecd58a;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900;margin-bottom:9px}
+.secMeta{font-size:12px;font-weight:900;letter-spacing:.08em;color:#b18719;margin-bottom:9px}
+.section h2{font-size:23px;line-height:1.4;margin:0 0 16px}
+.content{font-size:16px;line-height:1.95;color:#403b34}
+.content p{margin:0 0 14px}
+.loading{padding:80px 20px;text-align:center;color:#777}
+.spin{width:34px;height:34px;border:3px solid #ddd;border-top-color:#111;border-radius:50%;margin:0 auto 16px;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+.err{max-width:760px;margin:40px auto;background:#fff0ef;border:1px solid #ffc8c3;color:#a42a20;padding:20px;border-radius:16px;line-height:1.7}
+@media(max-width:620px){
+  .topinner{padding:10px 12px}
+  .brand{font-size:13px}
+  .wrap{padding:14px 12px 70px}
+  .reportHero{padding:22px;border-radius:20px}
+  .reportHero h1{font-size:25px}
+  .section{padding:21px 18px;border-radius:18px;margin-top:12px}
+  .section h2{font-size:20px}
+  .content{font-size:15.5px;line-height:1.9}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topinner">
+    <div class="brand">나의사주 · REPORT VIEWER</div>
+    <a id="backBtn" class="back" href="/guest-report.html">← 돌아가기</a>
+  </div>
+</div>
+<div class="wrap">
+  <div id="app" class="loading"><div class="spin"></div>리포트를 여는 중입니다.</div>
+</div>
+<script>
+const app=document.getElementById('app');
+const params=new URLSearchParams(location.search);
+const token=params.get('token')||'';
+document.getElementById('backBtn').href='/guest-report.html?token='+encodeURIComponent(token);
+
+function esc(s){
+  return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+}
+function safeHtml(html){
+  return String(html||'')
+    .replace(/<script[\s\S]*?<\/script>/gi,'')
+    .replace(/\son\w+="[^"]*"/gi,'')
+    .replace(/\son\w+='[^']*'/gi,'');
+}
+
+async function load(){
+  if(!token){
+    app.className='';
+    app.innerHTML='<div class="err"><b>열람 링크가 없습니다.</b><br>비회원 주문 페이지에서 다시 열어주세요.</div>';
+    return;
+  }
+  try{
+    const r=await fetch('/api/guest-order?token='+encodeURIComponent(token),{cache:'no-store'});
+    const d=await r.json();
+    if(!r.ok||!d.ok) throw new Error(d.error||'조회 실패');
+
+    const rep=d.report;
+    const sections=Array.isArray(d.sections)?d.sections:[];
+    if(!rep || rep.status!=='completed'){
+      throw new Error('아직 리포트 생성이 완료되지 않았습니다.');
+    }
+
+    app.className='';
+    app.innerHTML=`
+      <section class="reportHero">
+        <h1>${esc(rep.title||'나의 리포트')}</h1>
+        <p>아래로 스크롤하면서 리포트를 바로 읽을 수 있습니다.</p>
+      </section>
+
+      ${sections.map((s,idx)=>`
+        <article class="section">
+          <div class="partLabel">${esc(s.part_title||'')}</div>
+          <div class="secMeta">SECTION ${String(s.section_no||idx+1).padStart(2,'0')}</div>
+          <h2>${esc(s.section_title||'')}</h2>
+          <div class="content">${safeHtml(s.content_html||'')}</div>
+        </article>
+      `).join('')}
+    `;
+  }catch(e){
+    app.className='';
+    app.innerHTML=`<div class="err"><b>리포트를 열지 못했습니다.</b><br>${esc(e.message)}</div>`;
+  }
+}
+load();
+</script>
+</body>
+</html>
