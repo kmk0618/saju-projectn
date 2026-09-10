@@ -47,6 +47,7 @@ body{margin:0;background:#f8f7f3;color:#171717;font-family:Pretendard,"Noto Sans
   <div class="brand">나의사주 · MY REPORT</div>
   <div id="app" class="loading"><div class="spin"></div>리포트를 불러오고 있습니다.</div>
 </div>
+
 <script>
 const app=document.getElementById('app');
 const params=new URLSearchParams(location.search);
@@ -65,7 +66,9 @@ if(!token){
 }
 
 function esc(s){
-  return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+  return String(s??'').replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]))
 }
 function money(n){return Number(n||0).toLocaleString('ko-KR')+'원'}
 function dateK(v){if(!v)return '-';try{return new Date(v).toLocaleString('ko-KR')}catch(e){return v}}
@@ -86,15 +89,17 @@ async function load(){
     const p=o.product||{};
     const i=o.input||{};
     const done=rep?.status==='completed';
+
     const birth=(i.y&&i.m&&i.d)?`${i.y}.${i.m}.${i.d}`:'입력정보 저장됨';
     const time=i.unknown_time?'시간 모름':(i.h?`${i.h}:${i.mi||'00'}`:'-');
 
     app.className='';
+
     app.innerHTML=`
       <section class="hero">
         <h1>${esc(p.name||'종합 인생 리포트')}</h1>
         <p>${done
-          ? '리포트가 완성되었습니다. 아래에서 열람하거나 PDF로 저장할 수 있습니다.'
+          ? '리포트가 완성되었습니다. 아래 버튼으로 열람하거나 PDF로 저장할 수 있습니다.'
           : '리포트를 생성하고 있습니다.'
         }</p>
         ${o.is_test?'<span class="badge">0원 테스트 주문</span>':''}
@@ -121,6 +126,10 @@ async function load(){
           <div class="row"><div class="k">출생시간</div><div class="v">${esc(time)}</div></div>
           ${i.question?`<div class="question"><b>내 질문</b><br>${esc(i.question)}</div>`:''}
         </section>
+
+        <div class="actions" style="margin-top:16px">
+          <a class="btn secondary" href="/saju.html">홈으로</a>
+        </div>
       `:`
         <section class="card">
           <div class="statusTitle">리포트 생성 중</div>
@@ -133,6 +142,7 @@ async function load(){
     app.innerHTML=`<div class="err"><b>리포트를 불러오지 못했습니다.</b><br>${esc(e.message)}</div>`;
   }
 }
+
 load();
 </script>
 </body>
