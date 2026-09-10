@@ -1044,46 +1044,93 @@ async function startCheckout(name,price){
 
 async function confirmCheckout(){
   if(!checkoutProduct)return;
+
   const user=await getFamilyUser();
   const isGuest=!user;
-  let guestEmail='';
 
-  if(isGuest){
-    guestEmail=(document.getElementById('guestCheckoutEmail')?.value||'').trim();
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)){
-      showToast('비회원 구매에 사용할 이메일을 정확히 입력해 주세요.');
-      document.getElementById('guestCheckoutEmail')?.focus();
-      return;
-    }
-    try{
-      const raw=localStorage.getItem('saju_guest_checkout_payload');
-      const payload=raw?JSON.parse(raw):{};
-      payload.email=guestEmail;
-      payload.product=checkoutProduct.name;
-      payload.price=checkoutProduct.price;
-      localStorage.setItem('saju_guest_checkout_payload',JSON.stringify(payload));
-    }catch(e){}
-  }
-
-  // 실제 운영 배포 시 서버 주문 생성 API → PortOne/Toss 결제로 연결
-  const configured=window.SAJU_CONFIG&&window.SAJU_CONFIG.checkoutUrl;
-  if(configured){
-    const params=new URLSearchParams({
-      product:checkoutProduct.name,
-      guest:isGuest?'1':'0',
-      guest_email:isGuest?guestEmail:'',
-      birth_profile_id:checkoutProduct.birth_profile_id||'',
-      question_id:checkoutProduct.question_id||'',
-      calculation_id:checkoutProduct.calculation_id||''
-    });
-    location.href=window.SAJU_CONFIG.checkoutUrl+'?'+params.toString();
+  if(!isGuest){
+    showToast('이번 무료 테스트는 비회원 상태에서 진행해 주세요.');
     return;
   }
 
-  closeModal();
-  showToast(isGuest
-    ? '비회원 구매 준비가 완료됐습니다. PG 결제 연동 후 이 단계에서 바로 결제로 이어집니다.'
-    : '구매 준비가 완료됐습니다. PG 결제 연동 후 이 단계에서 바로 결제로 이어집니다.');
+  const guestEmail=(document.getElementById('guestCheckoutEmail')?.value||'').trim();
+
+  if(guestEmail.toLowerCase()!=='lovemk0618@naver.com'){
+    showToast('무료 테스트는 지정된 테스트 이메일로만 가능합니다.');
+    document.getElementById('guestCheckoutEmail')?.focus();
+    return;
+  }
+
+  const productSlugMap={
+    '종합 인생 리포트':'life-report',
+    '자녀 사주 리포트':'child-report',
+    '커플·부부 궁합':'couple-compatibility',
+    '부모·자녀 궁합':'parent-child-compatibility',
+    '신년 리포트':'new-year',
+    '자녀 사주':'child-report',
+    '신년 운세':'new-year',
+    '신년운세':'new-year'
+  };
+
+  const productSlug=productSlugMap[checkoutProduct.name];
+
+  if(!productSlug){
+    showToast('상품코드를 찾지 못했습니다: '+checkoutProduct.name);
+    return;
+  }
+
+  const buyBtn=document.getElementById('modalBuyBtn');
+  const oldText=buyBtn?.textContent||'';
+
+  try{
+    if(buyBtn){
+      buyBtn.disabled=true;
+      buyBtn.textContent='테스트 주문 만드는 중...';
+    }
+
+    const response=await fetch('/api/test-guest-order',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        guest_email:guestEmail,
+        product_slug:productSlug,
+        input:collectGuestCheckoutPayload()
+      })
+    });
+
+    const result=await response.json();
+
+    if(!response.ok||!result.ok){
+      throw new Error(result.error||'TEST_ORDER_FAILED');
+    }
+
+    localStorage.setItem('saju_test_guest_order',JSON.stringify({
+      ...result,
+      created_at:new Date().toISOString()
+    }));
+
+    closeModal();
+
+    alert(
+      '비회원 무료 테스트 주문이 생성되었습니다.\n\n'+
+      '실제 결제: 0원\n'+
+      '상품: '+result.product.name+'\n'+
+      'DB 상품가격: '+Number(result.listed_amount_krw).toLocaleString()+'원\n'+
+      '주문번호: '+result.merchant_uid+'\n'+
+      '상태: '+result.status
+    );
+
+    console.log('[SAJU TEST ORDER]',result);
+
+  }catch(err){
+    console.error(err);
+    showToast('테스트 주문 생성 실패: '+(err?.message||err));
+  }finally{
+    if(buyBtn){
+      buyBtn.disabled=false;
+      buyBtn.textContent=oldText||'비회원으로 구매하기';
+    }
+  }
 }function closeModal(){document.getElementById('modalBack').style.display='none'}document.getElementById('hu').addEventListener('change',e=>{document.getElementById('h').disabled=e.target.checked;document.getElementById('mi').disabled=e.target.checked;document.getElementById('region').disabled=e.target.checked});
 
 const REPORT_PREVIEWS=[
