@@ -98,9 +98,9 @@ function renderDone(name,isTest){
       <div class="statusTitle">리포트 완성</div>
       <div class="top"><div class="stage">PDF 제작까지 모든 작업 완료</div><div class="pct">100%</div></div>
       <div class="track"><div class="fill" style="width:100%"></div></div>
-      <div class="notice">리포트 바로보기와 PDF 저장은 같은 개인맞춤 PDF 한 파일을 사용합니다. 별도의 웹용 리포트는 만들지 않습니다.</div>
+      <div class="notice">리포트 바로보기는 서버에서 생성된 개인맞춤 PDF 자체를 바로 엽니다. PDF 다운로드도 동일한 파일을 사용합니다.</div>
       <div class="actions">
-        <a class="btn black" href="/report-viewer.html?token=${encodeURIComponent(token)}">리포트 바로보기</a>
+        <a class="btn black" href="/api/report/pdf?token=${encodeURIComponent(token)}">리포트 바로보기</a>
         <a class="btn gold" href="/api/report/pdf?token=${encodeURIComponent(token)}&download=1">PDF 다운로드</a>
       </div>
     </section>`;
