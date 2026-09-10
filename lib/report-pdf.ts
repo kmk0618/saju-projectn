@@ -47,13 +47,45 @@ function partBlocks(sections: SectionRow[]) {
         ${part.sections
           .sort((a, b) => a.section_no - b.section_no)
           .map((s) => `
-            <article class="section">
+            <article class="section" id="section-${s.section_no}">
               <div class="sectionNo">SECTION ${String(s.section_no).padStart(3, "0")}</div>
               <h2>${esc(s.section_title)}</h2>
               <div class="content">${cleanContentHtml(s.content_html)}</div>
             </article>
           `).join("")}
       </section>
+    `).join("");
+}
+
+
+function buildToc(sections: SectionRow[]) {
+  const grouped = new Map<number, { title: string; sections: SectionRow[] }>();
+
+  for (const s of sections) {
+    const partNo = Number(s.part_no || 0);
+    if (!grouped.has(partNo)) {
+      grouped.set(partNo, {
+        title: s.part_title || `PART ${partNo}`,
+        sections: [],
+      });
+    }
+    grouped.get(partNo)!.sections.push(s);
+  }
+
+  return [...grouped.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([partNo, part]) => `
+      <div class="tocPart">
+        <div class="tocPartTitle">PART ${partNo}. ${esc(part.title)}</div>
+        ${part.sections
+          .sort((a, b) => a.section_no - b.section_no)
+          .map((s) => `
+            <a class="tocRow" href="#section-${s.section_no}">
+              <span class="tocNo">${String(s.section_no).padStart(3, "0")}</span>
+              <span class="tocTitle">${esc(s.section_title)}</span>
+            </a>
+          `).join("")}
+      </div>
     `).join("");
 }
 
@@ -108,6 +140,65 @@ body {
   padding:5mm 6mm;
   color:#f1f1f1;
 }
+
+.toc {
+  page-break-after:always;
+  padding:3mm 1mm 0;
+}
+.tocHeader {
+  margin-bottom:8mm;
+}
+.tocEyebrow {
+  color:#b18719;
+  font-size:9pt;
+  font-weight:900;
+  letter-spacing:.14em;
+  margin-bottom:2mm;
+}
+.toc h1 {
+  margin:0;
+  font-size:24pt;
+  line-height:1.25;
+  letter-spacing:-.04em;
+}
+.tocDesc {
+  margin-top:3mm;
+  color:#777;
+  font-size:9.5pt;
+  line-height:1.65;
+}
+.tocPart {
+  margin:0 0 5mm;
+  break-inside:avoid;
+}
+.tocPartTitle {
+  background:#f4ecd0;
+  border-left:1.5mm solid #e8b914;
+  padding:2.6mm 3mm;
+  font-size:11pt;
+  font-weight:900;
+  margin-bottom:1.5mm;
+}
+.tocRow {
+  display:grid;
+  grid-template-columns:13mm 1fr;
+  gap:2mm;
+  align-items:start;
+  padding:1.6mm 2mm;
+  color:#222;
+  text-decoration:none;
+  border-bottom:0.2mm solid #eee8dc;
+}
+.tocNo {
+  color:#b18719;
+  font-weight:900;
+  font-size:8.5pt;
+}
+.tocTitle {
+  font-size:9.2pt;
+  line-height:1.45;
+}
+
 .part { margin:0; }
 .partTitle {
   background:#e8b914;
@@ -167,6 +258,15 @@ h2 {
       주문 후 자동 생성된 개인맞춤 리포트<br>
       ${generatedAt ? `생성일 ${esc(generatedAt)}` : ""}
     </div>
+  </section>
+
+  <section class="toc">
+    <div class="tocHeader">
+      <div class="tocEyebrow">CONTENTS</div>
+      <h1>목차</h1>
+      <div class="tocDesc">PART와 132개 질문을 한눈에 확인할 수 있습니다. 항목을 누르면 해당 내용으로 이동합니다.</div>
+    </div>
+    ${buildToc(sections)}
   </section>
 
   ${partBlocks(sections)}
