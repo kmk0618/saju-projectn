@@ -23,13 +23,13 @@ body{margin:0;background:#f8f7f3;color:#171717;font-family:Pretendard,"Noto Sans
 .notice{margin-top:22px;background:#fff7d5;border:1px solid #e8ca64;border-radius:15px;padding:15px 17px;font-weight:800;line-height:1.65}
 .speed{margin-top:12px;color:#777;font-size:13px;line-height:1.7}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
-.btn{padding:17px;border-radius:15px;text-decoration:none;font-weight:900;text-align:center}.view{background:#111;color:#fff}.pdf{background:#e8b914;color:#171100}
+.btn{padding:17px;border-radius:15px;text-decoration:none;font-weight:900;text-align:center}.view{background:#111;color:#fff}.pdf{background:#e8b914;color:#171100}.navActions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.navBtn{padding:14px 17px;border-radius:15px;text-decoration:none;font-weight:900;text-align:center;border:1px solid #ddd6c8;background:#faf8f2;color:#171717}.navBtn:hover{background:#f1ede4}
 .err{margin-top:18px;background:#fff0ef;border:1px solid #ffc7c1;color:#a32a20;padding:17px;border-radius:15px;line-height:1.65;white-space:pre-wrap}
 .steps{margin-top:20px;display:grid;gap:9px}
 .step{padding:12px 14px;border:1px solid #eee8db;background:#faf8f2;border-radius:14px;font-size:13px}
 .step.done{background:#f1efe8}
 .step.on{background:#fff8d9;border-color:#e8cf72;font-weight:900}
-@media(max-width:620px){.wrap{padding:14px 12px 55px}.hero{border-radius:22px;padding:24px}.hero h1{font-size:27px}.actions{grid-template-columns:1fr}.pct{font-size:32px}}
+@media(max-width:620px){.wrap{padding:14px 12px 55px}.hero{border-radius:22px;padding:24px}.hero h1{font-size:27px}.actions,.navActions{grid-template-columns:1fr}.pct{font-size:32px}}
 </style>
 </head>
 <body>
@@ -132,6 +132,10 @@ function renderDone(){
       <div class="actions">
         <a class="btn view" href="/api/report/pdf?token=${encodeURIComponent(token)}">리포트 바로보기</a>
         <a class="btn pdf" href="/api/report/pdf?token=${encodeURIComponent(token)}&download=1">PDF 다운로드</a>
+      </div>
+      <div class="navActions">
+        <a class="navBtn" href="/saju.html">홈으로 가기</a>
+        <a class="navBtn" href="/saju.html#my">나의 페이지</a>
       </div>
     </section>`;
 }

@@ -542,7 +542,7 @@ export async function POST(req: Request) {
         failures.push(`MISSING_SECTION_${spec.section_no}`);
         continue;
       }
-      const minimum = Math.floor(spec.target_chars[0] * 0.72);
+      const minimum = spec.target_chars[0];
       let validation = validateGeneratedSection({ candidate, minChars:minimum, previous:runningPrevious });
       let rewriteCount = 0;
 
@@ -563,6 +563,17 @@ export async function POST(req: Request) {
         } catch (e:any) {
           failures.push(`REWRITE_${spec.section_no}:${e?.message || String(e)}`);
         }
+      }
+
+      // 페이지 수를 여백으로 채우지 않고 실제 본문 밀도로 확보하기 위해
+      // 섹션별 최소 목표 글자수와 명식 근거는 반드시 통과한 결과만 저장한다.
+      // 미달 섹션은 저장하지 않으므로 다음 생성 호출에서 해당 섹션만 다시 생성된다.
+      const fatalIssues = validation.issues.filter((issue) =>
+        issue.startsWith("TOO_SHORT_") || issue === "NO_FACT_BASIS"
+      );
+      if (fatalIssues.length) {
+        failures.push(`QUALITY_${spec.section_no}:${fatalIssues.join(",")}`);
+        continue;
       }
 
       accepted.push({ spec, content:candidate, rewriteCount, qualityIssues:validation.issues });
