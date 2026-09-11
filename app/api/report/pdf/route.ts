@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { buildReportHtml, htmlToPdfBuffer } from "@/lib/report-pdf";
+import { buildReportHtml, htmlToPdfBuffer, PDF_RENDERER_VERSION } from "@/lib/report-pdf";
 import { REPORT_TOTAL_SECTIONS, REPORT_VERSION } from "@/lib/report-spec";
 
 export const runtime = "nodejs";
@@ -36,7 +36,7 @@ async function loadOrderReport(sb: any, token: string) {
 async function ensurePdf(sb: any, order: any, report: any) {
   const rj: any = report.report_json || {};
   if (report.prompt_version !== REPORT_VERSION) throw new Error(`PDF_NOT_READY:0/${REPORT_TOTAL_SECTIONS}`);
-  if (rj.pdf_storage_path && rj.pdf_ready !== false) return { path:rj.pdf_storage_path, size:rj.pdf_size || null };
+  if (rj.pdf_storage_path && rj.pdf_ready !== false && rj.pdf_renderer_version === PDF_RENDERER_VERSION) return { path:rj.pdf_storage_path, size:rj.pdf_size || null };
 
   const { data: sections, error: sectionsError } = await sb
     .from("report_sections")
@@ -63,7 +63,7 @@ async function ensurePdf(sb: any, order: any, report: any) {
     narrative:rj.narrative || null,
   });
   const pdf = await htmlToPdfBuffer(html);
-  const path = `guest/${order.id}/${report.id}-${REPORT_VERSION}.pdf`;
+  const path = `guest/${order.id}/${report.id}-${REPORT_VERSION}-${PDF_RENDERER_VERSION}.pdf`;
   const { error: uploadError } = await sb.storage.from("report-pdfs").upload(path, pdf, { contentType:"application/pdf", cacheControl:"0", upsert:true });
   if (uploadError) throw new Error("PDF_UPLOAD_FAILED:" + uploadError.message);
 
@@ -77,6 +77,7 @@ async function ensurePdf(sb: any, order: any, report: any) {
     pdf_storage_path:path,
     pdf_size:pdf.length,
     pdf_generated_at:new Date().toISOString(),
+    pdf_renderer_version:PDF_RENDERER_VERSION,
   };
   const { error: updateError } = await sb.from("reports").update({
     status:"completed",

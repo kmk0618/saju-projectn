@@ -90,7 +90,7 @@ ${JSON.stringify(args.recent)}
 ${JSON.stringify(requested)}
 
 반드시 각 section_no를 정확히 한 번씩 반환하세요.
-content_html에는 <p>, <strong>, <h3>, <ul>, <li>, <blockquote>만 사용하세요.
+content_html에는 <p>, <p class="lead">, <strong>, <h3>, <div class="subhead">, <div class="emph">, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ul class="check">, <li>, <blockquote>를 사용할 수 있습니다. layout_type이 table이면 실제 <table>을 본문에 반드시 넣고, checklist이면 실제 <ul class="check">를 넣으세요. strategy/timeline/comparison은 내용상 필요한 경우 표나 체크리스트를 사용하세요. prose에는 억지 표를 만들지 마세요.
 본문 분량은 각 섹션 target_chars의 최소값 이상을 우선 맞추되 같은 말 반복으로 채우지 마세요.
 
 각 섹션은 아래 필드를 모두 반환합니다.
@@ -105,6 +105,12 @@ content_html에는 <p>, <strong>, <h3>, <ul>, <li>, <blockquote>만 사용하세
 - layout_type: 요청된 layout_type 유지
 - checklist: 필요한 경우 3~7개, 아니면 []
 - table_rows: 필요한 경우 [{"label":"...","value":"..."}], 아니면 []
+
+편집 레이아웃 강제 규칙:
+- SECTION 01 기본 인적 정보: 입력값/계산 기준을 실제 HTML 표로 보여주세요.
+- SECTION 02 사주 원국 전체표: 년주·월주·일주·시주, 천간/지지/십성/지장간 등 전달된 근거를 실제 HTML 표로 보여주세요.
+- SECTION 04 오행 분포, SECTION 16 십성 분포, SECTION 22·23·27 등 layout_type=table 섹션은 표가 핵심 시각자료이므로 실제 <table>을 반드시 포함하세요.
+- 같은 표/체크리스트 틀을 모든 섹션에 반복하지 마세요. layout_type 계약에 맞는 섹션에서만 사용하세요.
 `.trim();
 }
 
@@ -146,7 +152,7 @@ ${JSON.stringify(args.recent)}
 - target_chars 최소 분량 이상.
 - 동일한 조언과 상투문구 금지.
 - 실제 명식 근거 최소 1개 이상.
-- content_html은 <p>, <strong>, <h3>, <ul>, <li>, <blockquote>만 사용.
+- content_html에는 <p>, <p class="lead">, <strong>, <h3>, <div class="subhead">, <div class="emph">, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ul class="check">, <li>, <blockquote>를 사용할 수 있습니다. layout_type이 table이면 실제 표를 반드시 포함하세요. checklist이면 실제 체크리스트를 반드시 포함하세요. prose에는 억지 표를 넣지 마세요.
 - JSON 필드는 section_no, opening_sentence, content_html, key_basis, life_scenes, risk, action_point, emphasis, layout_type, checklist, table_rows를 모두 반환.
 `.trim();
 }
