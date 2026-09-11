@@ -1350,31 +1350,66 @@ function applyProfileToMainForm(p,notify=true){
   if(sel && p.id) sel.value=p.id;
   if(notify) showProfileQuickNotice(`${p.label||familyRelationshipText(p.relationship)} 정보를 입력창에 불러왔습니다.`);
 }
-function loadProfileByIdToMain(id,scroll=false){
-  const p=familyProfiles.find(x=>x.id===id);
+async function loadProfileByIdToMain(id,scroll=false){
+  if(!id){showToast('프로필을 찾지 못했습니다.');return;}
+
+  // 사용자가 직접 선택한 프로필이 대표 프로필 자동불러오기에 다시 덮이지 않게 잠급니다.
+  primaryAutoLoaded=true;
+  selectedMainProfileId=id;
+
+  // 메모리 배열이 오래된 상태일 수 있으므로 선택한 프로필을 DB에서 직접 다시 조회합니다.
+  let p=familyProfiles.find(x=>x.id===id) || null;
+  try{
+    const user=await getFamilyUser();
+    if(user && familySupabase){
+      const {data,error}=await familySupabase
+        .from('birth_profiles')
+        .select('*')
+        .eq('id',id)
+        .eq('user_id',user.id)
+        .single();
+      if(!error && data){
+        p=data;
+        const idx=familyProfiles.findIndex(x=>x.id===id);
+        if(idx>=0) familyProfiles[idx]=data;
+        else familyProfiles.push(data);
+      }
+    }
+  }catch(e){
+    console.warn('프로필 최신값 조회 실패, 현재 목록 값 사용',e);
+  }
+
   if(!p){showToast('프로필을 찾지 못했습니다.');return;}
   currentBirthProfileId=p.id||'';
   applyProfileToMainForm(p,true);
+
+  // 브라우저/다른 스크립트가 값 변경을 인식하도록 이벤트를 발생시킵니다.
+  ['y','m','d','cal','g','h','mi','hu','region'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+    el.dispatchEvent(new Event('change',{bubbles:true}));
+  });
+
   if(scroll){
     const target=document.getElementById('free');
     if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
   }
 }
-function loadSelectedProfileToForm(){
+async function loadSelectedProfileToForm(){
   const sel=document.getElementById('savedProfileSelect');
   const id=sel?sel.value:'';
   if(!id){
     if(!familyProfiles.length){
-      getFamilyUser().then(user=>{
-        if(!user) window.top.location.href='/login';
-        else openFamilyModal(null,'self');
-      });
+      const user=await getFamilyUser();
+      if(!user) window.top.location.href='/login';
+      else openFamilyModal(null,'self');
       return;
     }
     showToast('불러올 프로필을 선택해 주세요.');
     return;
   }
-  loadProfileByIdToMain(id,false);
+  await loadProfileByIdToMain(id,false);
 }
 function mainFormIsBlank(){
   return !String(document.getElementById('y').value||'').trim()
