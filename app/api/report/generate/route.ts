@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calcSaju, calcLuckData } from "@/lib/saju-engine";
 import {
@@ -17,8 +17,10 @@ import { validateGeneratedSection, type QualityCandidate } from "@/lib/report-qu
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const PARALLEL_WORKERS = 6;
-const WAVE_SIZE = 18;
+const PARALLEL_WORKERS = 10;
+const WAVE_SIZE = 20;
+const OPENAI_TIMEOUT_MS = 140_000;
+const BACKGROUND_MAX_LOOPS = 6;
 const PROMPT_VERSION = REPORT_VERSION;
 const DEFAULT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-luna";
 const CURRENT_FLOW_YEAR = Number(process.env.REPORT_FLOW_YEAR || new Date().getFullYear());
@@ -148,7 +150,11 @@ async function openAIJson(args: { system: string; user: string; schema: any; sch
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("MISSING_OPENAI_API_KEY");
 
-  const resp = await fetch("https://api.openai.com/v1/responses", {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
+  let resp: Response;
+  try {
+    resp = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -159,9 +165,16 @@ async function openAIJson(args: { system: string; user: string; schema: any; sch
         { role: "user", content: [{ type: "input_text", text: args.user }] },
       ],
       text: { format: { type: "json_schema", name: args.schemaName, strict: true, schema: args.schema } },
-      max_output_tokens: args.maxTokens || 18000,
+      max_output_tokens: args.maxTokens || 12000,
     }),
+    signal: controller.signal,
   });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error("OPENAI_TIMEOUT");
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const raw = await resp.text();
   if (!resp.ok) throw new Error(`OPENAI_${resp.status}:${raw.slice(0, 1200)}`);
@@ -247,7 +260,7 @@ async function generateSectionBatch(args: {
     user: buildSectionPrompt(args),
     schema,
     schemaName: "saju_report_sections",
-    maxTokens: 18000,
+    maxTokens: 12000,
   });
   return Array.isArray(parsed?.sections) ? parsed.sections : [];
 }
@@ -275,7 +288,7 @@ async function rewriteSection(args: {
     }),
     schema,
     schemaName: "saju_report_rewrite",
-    maxTokens: 9000,
+    maxTokens: 7000,
   });
 }
 
@@ -433,6 +446,8 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const token = String(body?.token || "").trim();
+    const internal = body?.internal === true;
+    const background = body?.background === true;
     if (!/^[0-9a-fA-F-]{36}$/.test(token)) return J({ ok:false, error:"INVALID_TOKEN" }, 400);
 
     const { data: order, error: orderError } = await sb
@@ -448,6 +463,84 @@ export async function POST(req: Request) {
     const init = await ensureInitialized(sb, order, input);
     let report = await resetLegacyReportIfNeeded(sb, init.report);
     let currentJson: any = report.report_json || {};
+
+    if (!internal && background) {
+      const startedAt = Number(currentJson.background_started_at || 0);
+      const stillRunning = currentJson.background_running === true && (Date.now() - startedAt) < 6 * 60 * 1000;
+
+      if (!stillRunning) {
+        currentJson = {
+          ...currentJson,
+          background_running: true,
+          background_started_at: Date.now(),
+          background_last_error: null,
+        };
+        await sb.from("reports").update({ report_json: currentJson }).eq("id", report.id);
+
+        const generateUrl = new URL("/api/report/generate", req.url).toString();
+        const pdfUrl = new URL(`/api/report/pdf?token=${encodeURIComponent(token)}`, req.url).toString();
+
+        after(async () => {
+          let lastError = "";
+          try {
+            for (let i = 0; i < BACKGROUND_MAX_LOOPS; i++) {
+              const r = await fetch(generateUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token, internal: true, background: false }),
+                cache: "no-store",
+              });
+              const d = await r.json().catch(() => null);
+              if (!r.ok || !d?.ok) {
+                lastError = d?.detail || d?.error || `HTTP_${r.status}`;
+                await new Promise((resolve) => setTimeout(resolve, 1500));
+                continue;
+              }
+              if (Number(d.completed_sections || 0) >= REPORT_TOTAL_SECTIONS || d.phase === "pdf_queued") break;
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+
+            const { count: completedCount } = await admin().from("report_sections")
+              .select("id", { count: "exact", head: true })
+              .eq("report_id", report.id);
+
+            if ((completedCount || 0) >= REPORT_TOTAL_SECTIONS) {
+              const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
+              if (!pdfResp.ok) {
+                const t = await pdfResp.text().catch(() => "");
+                lastError = `PDF_${pdfResp.status}:${t.slice(0, 500)}`;
+              }
+            } else if (!lastError) {
+              lastError = `BACKGROUND_INCOMPLETE_${completedCount || 0}_${REPORT_TOTAL_SECTIONS}`;
+            }
+          } catch (e: any) {
+            lastError = e?.message || String(e);
+          } finally {
+            const bg = admin();
+            const { data: latest } = await bg.from("reports").select("report_json").eq("id", report.id).maybeSingle();
+            const latestJson: any = latest?.report_json || currentJson;
+            await bg.from("reports").update({
+              report_json: {
+                ...latestJson,
+                background_running: false,
+                background_finished_at: Date.now(),
+                background_last_error: lastError || null,
+              },
+            }).eq("id", report.id);
+          }
+        });
+      }
+
+      return J({
+        ok: true,
+        status: stillRunning ? "background_running" : "background_started",
+        progress: Number(currentJson.progress || 12),
+        completed_sections: Number(currentJson.completed_sections || 0),
+        total_sections: REPORT_TOTAL_SECTIONS,
+        report_id: report.id,
+        pdf_ready: currentJson.pdf_ready === true,
+      }, 202);
+    }
 
     if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
       return J({ ok:true, status:"completed", progress:100, completed_sections:REPORT_TOTAL_SECTIONS, total_sections:REPORT_TOTAL_SECTIONS, report_id:report.id, pdf_ready:true });
@@ -486,7 +579,7 @@ export async function POST(req: Request) {
     }
 
     const wave = allMissing.slice(0, WAVE_SIZE);
-    const workerCount = Math.min(PARALLEL_WORKERS, Math.ceil(wave.length / 3));
+    const workerCount = Math.min(PARALLEL_WORKERS, Math.ceil(wave.length / 2));
     const chunks: ReportSectionSpec[][] = Array.from({ length: workerCount }, () => []);
     wave.forEach((item, index) => chunks[index % workerCount].push(item));
 
