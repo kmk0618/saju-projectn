@@ -17,10 +17,10 @@ import { validateGeneratedSection, type QualityCandidate } from "@/lib/report-qu
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const PARALLEL_WORKERS = 10;
-const WAVE_SIZE = 20;
-const OPENAI_TIMEOUT_MS = 140_000;
-const BACKGROUND_MAX_LOOPS = 6;
+const PARALLEL_WORKERS = 8;
+const WAVE_SIZE = 8;
+const OPENAI_TIMEOUT_MS = 75_000;
+const BACKGROUND_STALE_MS = 4 * 60 * 1000;
 const PROMPT_VERSION = REPORT_VERSION;
 const DEFAULT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-luna";
 const CURRENT_FLOW_YEAR = Number(process.env.REPORT_FLOW_YEAR || new Date().getFullYear());
@@ -464,71 +464,39 @@ export async function POST(req: Request) {
     let report = await resetLegacyReportIfNeeded(sb, init.report);
     let currentJson: any = report.report_json || {};
 
+    const generateUrl = new URL("/api/report/generate", req.url).toString();
+    const pdfUrl = new URL(`/api/report/pdf?token=${encodeURIComponent(token)}`, req.url).toString();
+
+    const kickNextWorker = () => {
+      after(async () => {
+        try {
+          await fetch(generateUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-report-worker": "1" },
+            body: JSON.stringify({ token, internal: true, background: false }),
+            cache: "no-store",
+          });
+        } catch (e) {
+          console.error("REPORT_WORKER_KICK_FAILED", e);
+        }
+      });
+    };
+
     if (!internal && background) {
-      const startedAt = Number(currentJson.background_started_at || 0);
-      const stillRunning = currentJson.background_running === true && (Date.now() - startedAt) < 6 * 60 * 1000;
+      const heartbeatAt = Number(currentJson.background_heartbeat_at || currentJson.background_started_at || 0);
+      const stillRunning = currentJson.background_running === true && (Date.now() - heartbeatAt) < BACKGROUND_STALE_MS;
 
       if (!stillRunning) {
         currentJson = {
           ...currentJson,
           background_running: true,
           background_started_at: Date.now(),
+          background_heartbeat_at: Date.now(),
           background_last_error: null,
+          background_no_progress_count: 0,
         };
-        await sb.from("reports").update({ report_json: currentJson }).eq("id", report.id);
-
-        const generateUrl = new URL("/api/report/generate", req.url).toString();
-        const pdfUrl = new URL(`/api/report/pdf?token=${encodeURIComponent(token)}`, req.url).toString();
-
-        after(async () => {
-          let lastError = "";
-          try {
-            for (let i = 0; i < BACKGROUND_MAX_LOOPS; i++) {
-              const r = await fetch(generateUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ token, internal: true, background: false }),
-                cache: "no-store",
-              });
-              const d = await r.json().catch(() => null);
-              if (!r.ok || !d?.ok) {
-                lastError = d?.detail || d?.error || `HTTP_${r.status}`;
-                await new Promise((resolve) => setTimeout(resolve, 1500));
-                continue;
-              }
-              if (Number(d.completed_sections || 0) >= REPORT_TOTAL_SECTIONS || d.phase === "pdf_queued") break;
-              await new Promise((resolve) => setTimeout(resolve, 500));
-            }
-
-            const { count: completedCount } = await admin().from("report_sections")
-              .select("id", { count: "exact", head: true })
-              .eq("report_id", report.id);
-
-            if ((completedCount || 0) >= REPORT_TOTAL_SECTIONS) {
-              const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
-              if (!pdfResp.ok) {
-                const t = await pdfResp.text().catch(() => "");
-                lastError = `PDF_${pdfResp.status}:${t.slice(0, 500)}`;
-              }
-            } else if (!lastError) {
-              lastError = `BACKGROUND_INCOMPLETE_${completedCount || 0}_${REPORT_TOTAL_SECTIONS}`;
-            }
-          } catch (e: any) {
-            lastError = e?.message || String(e);
-          } finally {
-            const bg = admin();
-            const { data: latest } = await bg.from("reports").select("report_json").eq("id", report.id).maybeSingle();
-            const latestJson: any = latest?.report_json || currentJson;
-            await bg.from("reports").update({
-              report_json: {
-                ...latestJson,
-                background_running: false,
-                background_finished_at: Date.now(),
-                background_last_error: lastError || null,
-              },
-            }).eq("id", report.id);
-          }
-        });
+        await sb.from("reports").update({ report_json: currentJson, error_message: null }).eq("id", report.id);
+        kickNextWorker();
       }
 
       return J({
@@ -540,6 +508,10 @@ export async function POST(req: Request) {
         report_id: report.id,
         pdf_ready: currentJson.pdf_ready === true,
       }, 202);
+    }
+
+    if (internal && req.headers.get("x-report-worker") !== "1") {
+      return J({ ok:false, error:"WORKER_ONLY" }, 403);
     }
 
     if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
@@ -579,9 +551,7 @@ export async function POST(req: Request) {
     }
 
     const wave = allMissing.slice(0, WAVE_SIZE);
-    const workerCount = Math.min(PARALLEL_WORKERS, Math.ceil(wave.length / 2));
-    const chunks: ReportSectionSpec[][] = Array.from({ length: workerCount }, () => []);
-    wave.forEach((item, index) => chunks[index % workerCount].push(item));
+    const chunks: ReportSectionSpec[][] = wave.slice(0, PARALLEL_WORKERS).map((item) => [item]);
 
     await sb.from("reports").update({
       status:"generating",
@@ -626,17 +596,14 @@ export async function POST(req: Request) {
       } else failures.push(`W${index + 1}:${result.reason?.message || String(result.reason)}`);
     });
 
-    const accepted: Array<{ spec: ReportSectionSpec; content: any; rewriteCount: number; qualityIssues: string[] }> = [];
-    const runningPrevious = [...previousCandidates];
-
-    for (const spec of wave) {
+    const evaluated = await Promise.all(wave.map(async (spec) => {
       let candidate = generatedMap.get(spec.section_no);
       if (!candidate?.content_html) {
-        failures.push(`MISSING_SECTION_${spec.section_no}`);
-        continue;
+        return { ok:false as const, failure:`MISSING_SECTION_${spec.section_no}` };
       }
+
       const minimum = spec.target_chars[0];
-      let validation = validateGeneratedSection({ candidate, minChars:minimum, previous:runningPrevious });
+      let validation = validateGeneratedSection({ candidate, minChars:minimum, previous:previousCandidates });
       let rewriteCount = 0;
 
       if (!validation.ok) {
@@ -647,30 +614,34 @@ export async function POST(req: Request) {
             chapter2_summary: narrative?.chapter_theses?.["2"] || "",
             chapter2_material: narrative,
           });
-          const rewritten = await rewriteSection({ spec, calcSubset:subset, narrative, question:input.question, candidate, issues:validation.issues, recent:recentSummary });
+          const rewritten = await rewriteSection({
+            spec, calcSubset:subset, narrative, question:input.question,
+            candidate, issues:validation.issues, recent:recentSummary,
+          });
           if (rewritten?.content_html) {
             candidate = rewritten;
             rewriteCount = 1;
-            validation = validateGeneratedSection({ candidate, minChars:minimum, previous:runningPrevious });
+            validation = validateGeneratedSection({ candidate, minChars:minimum, previous:previousCandidates });
           }
         } catch (e:any) {
-          failures.push(`REWRITE_${spec.section_no}:${e?.message || String(e)}`);
+          return { ok:false as const, failure:`REWRITE_${spec.section_no}:${e?.message || String(e)}` };
         }
       }
 
-      // 페이지 수를 여백으로 채우지 않고 실제 본문 밀도로 확보하기 위해
-      // 섹션별 최소 목표 글자수와 명식 근거는 반드시 통과한 결과만 저장한다.
-      // 미달 섹션은 저장하지 않으므로 다음 생성 호출에서 해당 섹션만 다시 생성된다.
       const fatalIssues = validation.issues.filter((issue) =>
         issue.startsWith("TOO_SHORT_") || issue === "NO_FACT_BASIS"
       );
       if (fatalIssues.length) {
-        failures.push(`QUALITY_${spec.section_no}:${fatalIssues.join(",")}`);
-        continue;
+        return { ok:false as const, failure:`QUALITY_${spec.section_no}:${fatalIssues.join(",")}` };
       }
 
-      accepted.push({ spec, content:candidate, rewriteCount, qualityIssues:validation.issues });
-      runningPrevious.push(candidate);
+      return { ok:true as const, spec, content:candidate, rewriteCount, qualityIssues:validation.issues };
+    }));
+
+    const accepted: Array<{ spec: ReportSectionSpec; content: any; rewriteCount: number; qualityIssues: string[] }> = [];
+    for (const item of evaluated) {
+      if (item.ok) accepted.push(item);
+      else failures.push(item.failure);
     }
 
     if (accepted.length) {
@@ -726,17 +697,60 @@ export async function POST(req: Request) {
         pdf_ready:false,
         last_wave_size:accepted.length,
         quality_failures:failures.slice(-10),
+        background_running:true,
+        background_heartbeat_at:Date.now(),
       },
       generation_model:DEFAULT_MODEL,
       prompt_version:PROMPT_VERSION,
       error_message:failures.length ? failures.join(" | ").slice(0,3000) : null,
     }).eq("id", report.id);
 
-    if (!accepted.length && failures.length) throw new Error("WAVE_GENERATION_FAILED:" + failures.join(" | ").slice(0,2500));
+    if (done) {
+      after(async () => {
+        let lastError = "";
+        try {
+          const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
+          if (!pdfResp.ok) {
+            const t = await pdfResp.text().catch(() => "");
+            lastError = `PDF_${pdfResp.status}:${t.slice(0,500)}`;
+          }
+        } catch (e:any) {
+          lastError = e?.message || String(e);
+        } finally {
+          const bg = admin();
+          const { data: latest } = await bg.from("reports").select("report_json").eq("id", report.id).maybeSingle();
+          const latestJson:any = latest?.report_json || {};
+          await bg.from("reports").update({
+            report_json:{
+              ...latestJson,
+              background_running:false,
+              background_finished_at:Date.now(),
+              background_last_error:lastError || null,
+            },
+          }).eq("id", report.id);
+        }
+      });
+    } else if (internal) {
+      const noProgressCount = accepted.length ? 0 : Number(currentJson.background_no_progress_count || 0) + 1;
+      const { data: latest } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
+      const latestJson:any = latest?.report_json || {};
+      await sb.from("reports").update({
+        report_json:{
+          ...latestJson,
+          background_running:noProgressCount < 6,
+          background_heartbeat_at:Date.now(),
+          background_no_progress_count:noProgressCount,
+          background_last_error:failures.length ? failures.join(" | ").slice(0,1200) : null,
+        },
+        error_message:noProgressCount >= 6 ? "연속 생성 실패로 자동 생성이 중단되었습니다. 다시 시작해 주세요." : null,
+      }).eq("id", report.id);
+
+      if (noProgressCount < 6) kickNextWorker();
+    }
 
     return J({
       ok:true,
-      status:"generating",
+      status: done ? "pdf_queued" : (accepted.length ? "generating" : "retrying"),
       progress,
       completed_sections:completed,
       total_sections:REPORT_TOTAL_SECTIONS,
@@ -753,5 +767,5 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  return J({ ok:true, route:"report/generate", mode:"aqua-50-wave", wave_size:WAVE_SIZE, parallel_workers:PARALLEL_WORKERS, total_sections:REPORT_TOTAL_SECTIONS, prompt_version:PROMPT_VERSION, model:DEFAULT_MODEL });
+  return J({ ok:true, route:"report/generate", mode:"aqua-50-chained-background", wave_size:WAVE_SIZE, parallel_workers:PARALLEL_WORKERS, total_sections:REPORT_TOTAL_SECTIONS, prompt_version:PROMPT_VERSION, model:DEFAULT_MODEL });
 }

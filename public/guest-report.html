@@ -45,7 +45,7 @@ const app=document.getElementById('app');
 const token=new URLSearchParams(location.search).get('token')||'';
 
 let generateInFlight=false;
-let generationStarted=false;
+let generationStartRequested=false;
 let currentName='종합 인생 리포트';
 let isTest=false;
 let stopped=false;
@@ -187,17 +187,16 @@ async function ensurePdf(){
 }
 
 async function launchParallelGeneration(){
-  if(generateInFlight || generationStarted || stopped) return;
+  if(generateInFlight || generationStartRequested || stopped) return;
 
   generateInFlight=true;
-  generationStarted=true;
+  generationStartRequested=true;
 
   try{
     const r=await fetch('/api/report/generate',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({token,background:true}),
-      keepalive:true
+      body:JSON.stringify({token, background:true})
     });
 
     const raw=await r.text();
@@ -205,14 +204,13 @@ async function launchParallelGeneration(){
     try{ d=raw?JSON.parse(raw):null; }catch{}
 
     if(!r.ok || !d?.ok){
-      generationStarted=false;
+      generationStartRequested=false;
       throw new Error((d?.error||'리포트 생성 시작 실패')+(d?.detail?' : '+d.detail:''));
     }
-
   }catch(e){
-    console.error('[BACKGROUND REPORT GENERATION]',e);
+    console.error('[BACKGROUND REPORT START]',e);
     showError(e.message||String(e));
-    generationStarted=false;
+    setTimeout(()=>{ generationStartRequested=false; launchParallelGeneration(); },10000);
   }finally{
     generateInFlight=false;
   }
@@ -270,8 +268,7 @@ async function poll(){
 
     renderProgress(pct,completed,total,j.phase||'');
 
-    // Start generation in background. Polling remains independent, so the
-    // percentage can update while the long generation request is still running.
+    // 한 번만 백그라운드 작업을 시작하고, 이후에는 상태만 조회한다.
     launchParallelGeneration();
 
     setTimeout(poll,2000);
