@@ -17,9 +17,11 @@ import { validateGeneratedSection, type QualityCandidate } from "@/lib/report-qu
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const PARALLEL_WORKERS = 8;
-const WAVE_SIZE = 8;
+const PARALLEL_WORKERS = 12;
 const OPENAI_TIMEOUT_MS = 75_000;
+// 새 작업을 시작하는 시간 한도. 한 SECTION이 생성+재작성까지 최악의 경우 약 150초 걸릴 수 있어
+// Vercel 300초 제한 안에 안전하게 끝나도록 110초까지만 새 작업을 투입한다.
+const WORK_START_CUTOFF_MS = 110_000;
 const BACKGROUND_STALE_MS = 4 * 60 * 1000;
 const PROMPT_VERSION = REPORT_VERSION;
 const DEFAULT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-luna";
@@ -441,6 +443,352 @@ function qualityCandidateFromRow(row: any): QualityCandidate {
   };
 }
 
+
+async function loadOrderForToken(sb: any, token: string) {
+  const { data: order, error } = await sb
+    .from("orders")
+    .select("id,user_id,product_id,birth_profile_id,question_id,status,payment_payload,guest_access_token,products(slug,name,report_type)")
+    .eq("guest_access_token", token)
+    .maybeSingle();
+  if (error || !order) throw new Error("ORDER_NOT_FOUND");
+  if (order.status !== "paid") throw new Error("ORDER_NOT_PAID");
+  return order;
+}
+
+async function kickWorker(generateUrl: string, token: string) {
+  try {
+    const resp = await fetch(generateUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-report-worker": "1" },
+      body: JSON.stringify({ token, internal: true }),
+      cache: "no-store",
+    });
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => "");
+      console.error("REPORT_WORKER_KICK_HTTP_ERROR", resp.status, t.slice(0, 500));
+    }
+  } catch (e) {
+    console.error("REPORT_WORKER_KICK_FAILED", e);
+  }
+}
+
+async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectionSpec, content: any, rewriteCount: number, qualityIssues: string[]) {
+  const row = {
+    report_id: reportId,
+    section_no: spec.section_no,
+    part_no: spec.part_no,
+    part_title: spec.part_title,
+    section_title: spec.section_title,
+    content_html: content.content_html,
+    content_json: {
+      opening_sentence: content.opening_sentence || "",
+      key_basis: Array.isArray(content.key_basis) ? content.key_basis : [],
+      life_scenes: Array.isArray(content.life_scenes) ? content.life_scenes : [],
+      risk: content.risk || "",
+      action_point: content.action_point || "",
+      emphasis: content.emphasis || "",
+      layout_type: content.layout_type || spec.layout_type,
+      checklist: Array.isArray(content.checklist) ? content.checklist : [],
+      table_rows: Array.isArray(content.table_rows) ? content.table_rows : [],
+      quality_score: qualityIssues.length ? 0.78 : 0.96,
+      quality_issues: qualityIssues,
+      rewrite_count: rewriteCount,
+      prompt_version: PROMPT_VERSION,
+    },
+  };
+
+  const { error: upsertError } = await sb.from("report_sections").upsert(row, { onConflict: "report_id,section_no" });
+  if (!upsertError) return;
+
+  await sb.from("report_sections").delete().eq("report_id", reportId).eq("section_no", spec.section_no);
+  const { error: insertError } = await sb.from("report_sections").insert(row);
+  if (insertError) throw new Error(`SECTION_${spec.section_no}_SAVE_FAILED:${insertError.message}`);
+}
+
+async function sectionCount(sb: any, reportId: string) {
+  // 예전 132섹션 데이터가 남아 있어도 현재 1~50만 진행률에 포함한다.
+  const { count, error } = await sb.from("report_sections")
+    .select("id", { count: "exact", head: true })
+    .eq("report_id", reportId)
+    .gte("section_no", 1)
+    .lte("section_no", REPORT_TOTAL_SECTIONS);
+  if (error) throw new Error("SECTION_COUNT_FAILED:" + error.message);
+  return Math.min(REPORT_TOTAL_SECTIONS, count || 0);
+}
+
+async function updateProgressNow(sb: any, reportId: string, narrative: any, extra: any = {}) {
+  const completed = await sectionCount(sb, reportId);
+  const { data: latest } = await sb.from("reports").select("report_json").eq("id", reportId).maybeSingle();
+  const latestJson: any = latest?.report_json || {};
+  const done = completed >= REPORT_TOTAL_SECTIONS;
+  const progress = done ? 97 : Math.min(95, Math.round(24 + (completed / REPORT_TOTAL_SECTIONS) * 70));
+  await sb.from("reports").update({
+    status: "generating",
+    report_json: {
+      ...latestJson,
+      ...extra,
+      narrative,
+      total_sections: REPORT_TOTAL_SECTIONS,
+      completed_sections: completed,
+      progress,
+      phase: done ? "pdf_queued" : "writing",
+      pdf_ready: false,
+      background_running: true,
+      background_heartbeat_at: Date.now(),
+    },
+    generation_model: DEFAULT_MODEL,
+    prompt_version: PROMPT_VERSION,
+  }).eq("id", reportId);
+  return { completed, done, progress };
+}
+
+async function runGenerationSlice(token: string, requestUrl: string) {
+  const sb = admin();
+  const generateUrl = new URL("/api/report/generate", requestUrl).toString();
+  const pdfUrl = new URL(`/api/report/pdf?token=${encodeURIComponent(token)}`, requestUrl).toString();
+  const startedAt = Date.now();
+  const failures: string[] = [];
+  let acceptedCount = 0;
+
+  try {
+    const order = await loadOrderForToken(sb, token);
+    const rawInput = (order.payment_payload as any)?.guest_input || {};
+    const input = normalizeInput(rawInput);
+    const init = await ensureInitialized(sb, order, input);
+    let report = await resetLegacyReportIfNeeded(sb, init.report);
+    let currentJson: any = report.report_json || {};
+
+    if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
+      return;
+    }
+
+    const calcCtx = calcContext(init.calcRow.calculation_json, input);
+    let narrative = currentJson.narrative;
+    if (!narrative) {
+      await sb.from("reports").update({
+        report_json: {
+          ...currentJson,
+          phase: "core_analysis",
+          progress: 18,
+          total_sections: REPORT_TOTAL_SECTIONS,
+          completed_sections: 0,
+          pdf_ready: false,
+          background_running: true,
+          background_heartbeat_at: Date.now(),
+        },
+      }).eq("id", report.id);
+      narrative = await generateNarrative(calcCtx, input.question, input.category);
+      const { data: latestAfterNarrative } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
+      currentJson = {
+        ...(latestAfterNarrative?.report_json || currentJson),
+        narrative,
+        phase: "writing",
+        progress: 22,
+        background_running: true,
+        background_heartbeat_at: Date.now(),
+      };
+      await sb.from("reports").update({ report_json: currentJson, generation_model: DEFAULT_MODEL, prompt_version: PROMPT_VERSION }).eq("id", report.id);
+    }
+
+    const { data: existingRows, error: existingError } = await sb
+      .from("report_sections")
+      .select("section_no,content_html,content_json")
+      .eq("report_id", report.id)
+      .gte("section_no", 1)
+      .lte("section_no", REPORT_TOTAL_SECTIONS)
+      .order("section_no", { ascending: true });
+    if (existingError) throw new Error("SECTION_LIST_FAILED:" + existingError.message);
+
+    const existingNos = new Set((existingRows || []).map((x: any) => Number(x.section_no)));
+    const missing = REPORT_OUTLINE.filter((x) => !existingNos.has(x.section_no));
+
+    if (!missing.length) {
+      await updateProgressNow(sb, report.id, narrative, { background_last_error: null });
+      const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
+      if (!pdfResp.ok) {
+        const t = await pdfResp.text().catch(() => "");
+        throw new Error(`PDF_${pdfResp.status}:${t.slice(0, 500)}`);
+      }
+      const { data: latest } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
+      await sb.from("reports").update({
+        report_json: {
+          ...(latest?.report_json || {}),
+          background_running: false,
+          background_finished_at: Date.now(),
+          background_last_error: null,
+        },
+        error_message: null,
+      }).eq("id", report.id);
+      return;
+    }
+
+    const previousCandidates = (existingRows || []).map(qualityCandidateFromRow);
+    const recentSummary = (existingRows || []).slice(-12).map((r: any) => ({
+      section_no: r.section_no,
+      opening_sentence: r.content_json?.opening_sentence || "",
+      key_basis: r.content_json?.key_basis || [],
+      action_point: r.content_json?.action_point || "",
+    }));
+
+    // 동시에 12개 슬롯을 유지한다. 하나가 끝나는 즉시 같은 worker가 다음 SECTION을 잡는다.
+    // 가장 느린 SECTION 때문에 나머지 슬롯이 쉬는 기존 wave barrier를 제거한다.
+    let cursor = 0;
+    let progressSerial: Promise<any> = Promise.resolve();
+
+    const queueProgress = (extra: any = {}) => {
+      progressSerial = progressSerial.then(() => updateProgressNow(sb, report.id, narrative, extra));
+      return progressSerial;
+    };
+
+    const runOne = async (spec: ReportSectionSpec) => {
+      const subset = evidenceSubset(calcCtx, [spec], {
+        question: input.question,
+        chapter1_summary: narrative?.chapter_theses?.["1"] || "",
+        chapter2_summary: narrative?.chapter_theses?.["2"] || "",
+        chapter2_material: narrative,
+      });
+
+      const generated = await generateSectionBatch({
+        specs: [spec],
+        calcSubset: subset,
+        narrative,
+        question: input.question,
+        category: input.category,
+        recent: recentSummary,
+      });
+      let candidate = (generated || []).find((g: any) => Number(g.section_no) === spec.section_no) || generated?.[0];
+      if (!candidate?.content_html) throw new Error(`MISSING_SECTION_${spec.section_no}`);
+
+      const minimum = spec.target_chars[0];
+      let validation = validateGeneratedSection({ candidate, minChars: minimum, previous: previousCandidates });
+      let rewriteCount = 0;
+
+      if (!validation.ok) {
+        const rewritten = await rewriteSection({
+          spec,
+          calcSubset: subset,
+          narrative,
+          question: input.question,
+          candidate,
+          issues: validation.issues,
+          recent: recentSummary,
+        });
+        if (rewritten?.content_html) {
+          candidate = rewritten;
+          rewriteCount = 1;
+          validation = validateGeneratedSection({ candidate, minChars: minimum, previous: previousCandidates });
+        }
+      }
+
+      const fatalIssues = validation.issues.filter((issue) => issue.startsWith("TOO_SHORT_") || issue === "NO_FACT_BASIS");
+      if (fatalIssues.length) throw new Error(`QUALITY_${spec.section_no}:${fatalIssues.join(",")}`);
+
+      await saveAcceptedSection(sb, report.id, spec, candidate, rewriteCount, validation.issues);
+      acceptedCount += 1;
+      // 다음 SECTION들의 중복 검사에도 방금 완성된 결과를 바로 반영한다.
+      previousCandidates.push({
+        opening_sentence: candidate.opening_sentence || "",
+        content_html: candidate.content_html || "",
+        key_basis: Array.isArray(candidate.key_basis) ? candidate.key_basis : [],
+        life_scenes: Array.isArray(candidate.life_scenes) ? candidate.life_scenes : [],
+        action_point: candidate.action_point || "",
+      });
+      recentSummary.push({
+        section_no: spec.section_no,
+        opening_sentence: candidate.opening_sentence || "",
+        key_basis: Array.isArray(candidate.key_basis) ? candidate.key_basis : [],
+        action_point: candidate.action_point || "",
+      });
+      if (recentSummary.length > 12) recentSummary.shift();
+
+      await queueProgress({ background_last_error: null, last_completed_section: spec.section_no });
+    };
+
+    const worker = async (workerNo: number) => {
+      while (true) {
+        // Vercel 300초 제한에 걸리지 않도록 늦은 시점에는 새 SECTION을 시작하지 않는다.
+        if (Date.now() - startedAt >= WORK_START_CUTOFF_MS) return;
+        const index = cursor++;
+        if (index >= missing.length) return;
+        const spec = missing[index];
+        try {
+          await runOne(spec);
+        } catch (e: any) {
+          failures.push(`S${spec.section_no}/W${workerNo}:${e?.message || String(e)}`);
+          // 실패 SECTION 하나 때문에 worker 전체를 멈추지 않고 바로 다음 SECTION을 진행한다.
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(PARALLEL_WORKERS, missing.length) }, (_, i) => worker(i + 1)));
+    await progressSerial;
+
+    const state = await updateProgressNow(sb, report.id, narrative, {
+      last_slice_saved: acceptedCount,
+      quality_failures: failures.slice(-10),
+      background_last_error: failures.length ? failures.join(" | ").slice(0, 1200) : null,
+    });
+
+    if (state.done) {
+      const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
+      if (!pdfResp.ok) {
+        const t = await pdfResp.text().catch(() => "");
+        throw new Error(`PDF_${pdfResp.status}:${t.slice(0, 500)}`);
+      }
+      const { data: latest } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
+      await sb.from("reports").update({
+        report_json: {
+          ...(latest?.report_json || {}),
+          background_running: false,
+          background_finished_at: Date.now(),
+          background_last_error: null,
+        },
+        error_message: null,
+      }).eq("id", report.id);
+      return;
+    }
+
+    const noProgressCount = acceptedCount ? 0 : Number(currentJson.background_no_progress_count || 0) + 1;
+    const { data: latest } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
+    await sb.from("reports").update({
+      report_json: {
+        ...(latest?.report_json || {}),
+        background_running: noProgressCount < 6,
+        background_heartbeat_at: Date.now(),
+        background_no_progress_count: noProgressCount,
+        background_last_error: failures.length ? failures.join(" | ").slice(0, 1200) : null,
+      },
+      error_message: noProgressCount >= 6 ? "연속 생성 실패로 자동 생성이 중단되었습니다. 다시 시작해 주세요." : null,
+    }).eq("id", report.id);
+
+    if (noProgressCount < 6) {
+      // 다음 invocation은 즉시 202를 반환하고 자체 after()에서 다음 slice를 실행한다.
+      // 따라서 현재 invocation이 자식 작업 완료까지 기다리면서 300초를 초과하지 않는다.
+      await kickWorker(generateUrl, token);
+    }
+  } catch (e: any) {
+    console.error("REPORT_BACKGROUND_SLICE_ERROR", e);
+    try {
+      const order = await loadOrderForToken(sb, token);
+      const { data: report } = await sb.from("reports").select("id,report_json").eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (report) {
+        const j: any = report.report_json || {};
+        await sb.from("reports").update({
+          report_json: {
+            ...j,
+            background_running: false,
+            background_heartbeat_at: Date.now(),
+            background_last_error: e?.message || String(e),
+          },
+          error_message: (e?.message || String(e)).slice(0, 3000),
+        }).eq("id", report.id);
+      }
+    } catch (inner) {
+      console.error("REPORT_BACKGROUND_ERROR_SAVE_FAILED", inner);
+    }
+  }
+}
+
 export async function POST(req: Request) {
   const sb = admin();
   try {
@@ -448,324 +796,100 @@ export async function POST(req: Request) {
     const token = String(body?.token || "").trim();
     const internal = body?.internal === true;
     const background = body?.background === true;
-    if (!/^[0-9a-fA-F-]{36}$/.test(token)) return J({ ok:false, error:"INVALID_TOKEN" }, 400);
+    if (!/^[0-9a-fA-F-]{36}$/.test(token)) return J({ ok: false, error: "INVALID_TOKEN" }, 400);
 
-    const { data: order, error: orderError } = await sb
-      .from("orders")
-      .select("id,user_id,product_id,birth_profile_id,question_id,status,payment_payload,guest_access_token,products(slug,name,report_type)")
-      .eq("guest_access_token", token)
-      .maybeSingle();
-    if (orderError || !order) return J({ ok:false, error:"ORDER_NOT_FOUND" }, 404);
-    if (order.status !== "paid") return J({ ok:false, error:"ORDER_NOT_PAID" }, 409);
+    if (internal) {
+      if (req.headers.get("x-report-worker") !== "1") return J({ ok: false, error: "WORKER_ONLY" }, 403);
+      // 중요: 내부 체인 호출은 오래 일하지 않고 즉시 202를 반환한다.
+      // 실제 12병렬 작업은 이 invocation의 after()에서 실행되므로 부모 self-fetch가 자식 완료를 기다리지 않는다.
+      after(async () => {
+        await runGenerationSlice(token, req.url);
+      });
+      return J({ ok: true, status: "worker_accepted" }, 202);
+    }
 
+    const order = await loadOrderForToken(sb, token);
     const rawInput = (order.payment_payload as any)?.guest_input || {};
     const input = normalizeInput(rawInput);
     const init = await ensureInitialized(sb, order, input);
-    let report = await resetLegacyReportIfNeeded(sb, init.report);
-    let currentJson: any = report.report_json || {};
+    const report = await resetLegacyReportIfNeeded(sb, init.report);
+    const currentJson: any = report.report_json || {};
 
-    const generateUrl = new URL("/api/report/generate", req.url).toString();
-    const pdfUrl = new URL(`/api/report/pdf?token=${encodeURIComponent(token)}`, req.url).toString();
-
-    const kickNextWorker = () => {
-      after(async () => {
-        try {
-          await fetch(generateUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-report-worker": "1" },
-            body: JSON.stringify({ token, internal: true, background: false }),
-            cache: "no-store",
-          });
-        } catch (e) {
-          console.error("REPORT_WORKER_KICK_FAILED", e);
-        }
+    if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
+      return J({
+        ok: true,
+        status: "completed",
+        progress: 100,
+        completed_sections: REPORT_TOTAL_SECTIONS,
+        total_sections: REPORT_TOTAL_SECTIONS,
+        report_id: report.id,
+        pdf_ready: true,
       });
-    };
+    }
 
-    if (!internal && background) {
+    const completed = await sectionCount(sb, report.id);
+    const progress = Math.min(95, Math.max(Number(currentJson.progress || 12), Math.round(24 + (completed / REPORT_TOTAL_SECTIONS) * 70)));
+
+    if (background) {
       const heartbeatAt = Number(currentJson.background_heartbeat_at || currentJson.background_started_at || 0);
       const stillRunning = currentJson.background_running === true && (Date.now() - heartbeatAt) < BACKGROUND_STALE_MS;
 
       if (!stillRunning) {
-        currentJson = {
+        const nextJson = {
           ...currentJson,
+          total_sections: REPORT_TOTAL_SECTIONS,
+          completed_sections: completed,
+          progress,
           background_running: true,
           background_started_at: Date.now(),
           background_heartbeat_at: Date.now(),
           background_last_error: null,
           background_no_progress_count: 0,
         };
-        await sb.from("reports").update({ report_json: currentJson, error_message: null }).eq("id", report.id);
-        kickNextWorker();
+        await sb.from("reports").update({ report_json: nextJson, error_message: null }).eq("id", report.id);
+        const generateUrl = new URL("/api/report/generate", req.url).toString();
+        after(async () => {
+          await kickWorker(generateUrl, token);
+        });
       }
 
       return J({
         ok: true,
         status: stillRunning ? "background_running" : "background_started",
-        progress: Number(currentJson.progress || 12),
-        completed_sections: Number(currentJson.completed_sections || 0),
+        progress,
+        completed_sections: completed,
         total_sections: REPORT_TOTAL_SECTIONS,
         report_id: report.id,
         pdf_ready: currentJson.pdf_ready === true,
       }, 202);
     }
 
-    if (internal && req.headers.get("x-report-worker") !== "1") {
-      return J({ ok:false, error:"WORKER_ONLY" }, 403);
-    }
-
-    if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
-      return J({ ok:true, status:"completed", progress:100, completed_sections:REPORT_TOTAL_SECTIONS, total_sections:REPORT_TOTAL_SECTIONS, report_id:report.id, pdf_ready:true });
-    }
-
-    const calcCtx = calcContext(init.calcRow.calculation_json, input);
-
-    let narrative = currentJson.narrative;
-    if (!narrative) {
-      await sb.from("reports").update({ report_json: { ...currentJson, phase:"core_analysis", progress:18, total_sections:REPORT_TOTAL_SECTIONS, completed_sections:0, pdf_ready:false } }).eq("id", report.id);
-      narrative = await generateNarrative(calcCtx, input.question, input.category);
-      currentJson = { ...currentJson, narrative, phase:"writing", progress:22 };
-      await sb.from("reports").update({ report_json: currentJson, generation_model:DEFAULT_MODEL, prompt_version:PROMPT_VERSION }).eq("id", report.id);
-    }
-
-    const { data: existingRows, error: existingError } = await sb
-      .from("report_sections")
-      .select("section_no,content_html,content_json")
-      .eq("report_id", report.id)
-      .order("section_no", { ascending:true });
-    if (existingError) throw new Error("SECTION_LIST_FAILED:" + existingError.message);
-
-    const existingNos = new Set((existingRows || []).map((x:any) => Number(x.section_no)));
-    const allMissing = REPORT_OUTLINE.filter((x) => !existingNos.has(x.section_no));
-    const completedBefore = REPORT_TOTAL_SECTIONS - allMissing.length;
-
-    if (!allMissing.length) {
-      await sb.from("reports").update({
-        status:"generating",
-        report_json:{ ...currentJson, narrative, total_sections:REPORT_TOTAL_SECTIONS, completed_sections:REPORT_TOTAL_SECTIONS, progress:97, phase:"pdf_queued", pdf_ready:false },
-        generation_model:DEFAULT_MODEL,
-        prompt_version:PROMPT_VERSION,
-        error_message:null,
-      }).eq("id", report.id);
-      return J({ ok:true, status:"generating", progress:97, completed_sections:REPORT_TOTAL_SECTIONS, total_sections:REPORT_TOTAL_SECTIONS, report_id:report.id, pdf_ready:false, phase:"pdf_queued" });
-    }
-
-    const wave = allMissing.slice(0, WAVE_SIZE);
-    const chunks: ReportSectionSpec[][] = wave.slice(0, PARALLEL_WORKERS).map((item) => [item]);
-
-    await sb.from("reports").update({
-      status:"generating",
-      generated_at:null,
-      report_json:{
-        ...currentJson,
-        narrative,
-        total_sections:REPORT_TOTAL_SECTIONS,
-        completed_sections:completedBefore,
-        progress:Math.max(22, Math.round(24 + (completedBefore / REPORT_TOTAL_SECTIONS) * 70)),
-        phase:"writing",
-        pdf_ready:false,
-      },
-      generation_model:DEFAULT_MODEL,
-      prompt_version:PROMPT_VERSION,
-      error_message:null,
-    }).eq("id", report.id);
-
-    const previousCandidates = (existingRows || []).map(qualityCandidateFromRow);
-    const recentSummary = (existingRows || []).slice(-12).map((r:any) => ({
-      section_no: r.section_no,
-      opening_sentence: r.content_json?.opening_sentence || "",
-      key_basis: r.content_json?.key_basis || [],
-      action_point: r.content_json?.action_point || "",
-    }));
-
-    const workerResults = await Promise.allSettled(chunks.map(async (chunk) => {
-      const subset = evidenceSubset(calcCtx, chunk, {
-        question: input.question,
-        chapter1_summary: narrative?.chapter_theses?.["1"] || "",
-        chapter2_summary: narrative?.chapter_theses?.["2"] || "",
-        chapter2_material: narrative,
-      });
-      return generateSectionBatch({ specs:chunk, calcSubset:subset, narrative, question:input.question, category:input.category, recent:recentSummary });
-    }));
-
-    const generatedMap = new Map<number, any>();
-    const failures: string[] = [];
-    workerResults.forEach((result, index) => {
-      if (result.status === "fulfilled") {
-        for (const g of result.value || []) generatedMap.set(Number(g.section_no), g);
-      } else failures.push(`W${index + 1}:${result.reason?.message || String(result.reason)}`);
-    });
-
-    const evaluated = await Promise.all(wave.map(async (spec) => {
-      let candidate = generatedMap.get(spec.section_no);
-      if (!candidate?.content_html) {
-        return { ok:false as const, failure:`MISSING_SECTION_${spec.section_no}` };
-      }
-
-      const minimum = spec.target_chars[0];
-      let validation = validateGeneratedSection({ candidate, minChars:minimum, previous:previousCandidates });
-      let rewriteCount = 0;
-
-      if (!validation.ok) {
-        try {
-          const subset = evidenceSubset(calcCtx, [spec], {
-            question: input.question,
-            chapter1_summary: narrative?.chapter_theses?.["1"] || "",
-            chapter2_summary: narrative?.chapter_theses?.["2"] || "",
-            chapter2_material: narrative,
-          });
-          const rewritten = await rewriteSection({
-            spec, calcSubset:subset, narrative, question:input.question,
-            candidate, issues:validation.issues, recent:recentSummary,
-          });
-          if (rewritten?.content_html) {
-            candidate = rewritten;
-            rewriteCount = 1;
-            validation = validateGeneratedSection({ candidate, minChars:minimum, previous:previousCandidates });
-          }
-        } catch (e:any) {
-          return { ok:false as const, failure:`REWRITE_${spec.section_no}:${e?.message || String(e)}` };
-        }
-      }
-
-      const fatalIssues = validation.issues.filter((issue) =>
-        issue.startsWith("TOO_SHORT_") || issue === "NO_FACT_BASIS"
-      );
-      if (fatalIssues.length) {
-        return { ok:false as const, failure:`QUALITY_${spec.section_no}:${fatalIssues.join(",")}` };
-      }
-
-      return { ok:true as const, spec, content:candidate, rewriteCount, qualityIssues:validation.issues };
-    }));
-
-    const accepted: Array<{ spec: ReportSectionSpec; content: any; rewriteCount: number; qualityIssues: string[] }> = [];
-    for (const item of evaluated) {
-      if (item.ok) accepted.push(item);
-      else failures.push(item.failure);
-    }
-
-    if (accepted.length) {
-      const rows = accepted.map(({ spec, content, rewriteCount, qualityIssues }) => ({
-        report_id: report.id,
-        section_no: spec.section_no,
-        part_no: spec.part_no,
-        part_title: spec.part_title,
-        section_title: spec.section_title,
-        content_html: content.content_html,
-        content_json: {
-          opening_sentence: content.opening_sentence || "",
-          key_basis: Array.isArray(content.key_basis) ? content.key_basis : [],
-          life_scenes: Array.isArray(content.life_scenes) ? content.life_scenes : [],
-          risk: content.risk || "",
-          action_point: content.action_point || "",
-          emphasis: content.emphasis || "",
-          layout_type: content.layout_type || spec.layout_type,
-          checklist: Array.isArray(content.checklist) ? content.checklist : [],
-          table_rows: Array.isArray(content.table_rows) ? content.table_rows : [],
-          quality_score: qualityIssues.length ? 0.78 : 0.96,
-          quality_issues: qualityIssues,
-          rewrite_count: rewriteCount,
-          prompt_version: PROMPT_VERSION,
-        },
-      }));
-      const { error: saveError } = await sb.from("report_sections").upsert(rows, { onConflict:"report_id,section_no" });
-      if (saveError) {
-        for (const row of rows) {
-          await sb.from("report_sections").delete().eq("report_id", report.id).eq("section_no", row.section_no);
-          const { error } = await sb.from("report_sections").insert(row);
-          if (error) throw new Error(`SECTION_${row.section_no}_SAVE_FAILED:${error.message}`);
-        }
-      }
-    }
-
-    const { count: finalCount, error: countError } = await sb.from("report_sections")
-      .select("id", { count:"exact", head:true }).eq("report_id", report.id);
-    if (countError) throw new Error("FINAL_SECTION_COUNT_FAILED:" + countError.message);
-    const completed = finalCount || 0;
-    const done = completed >= REPORT_TOTAL_SECTIONS;
-    const progress = done ? 97 : Math.min(95, Math.round(24 + (completed / REPORT_TOTAL_SECTIONS) * 70));
-
-    await sb.from("reports").update({
-      status:"generating",
-      report_json:{
-        ...currentJson,
-        narrative,
-        total_sections:REPORT_TOTAL_SECTIONS,
-        completed_sections:completed,
-        progress,
-        phase:done ? "pdf_queued" : "writing",
-        pdf_ready:false,
-        last_wave_size:accepted.length,
-        quality_failures:failures.slice(-10),
-        background_running:true,
-        background_heartbeat_at:Date.now(),
-      },
-      generation_model:DEFAULT_MODEL,
-      prompt_version:PROMPT_VERSION,
-      error_message:failures.length ? failures.join(" | ").slice(0,3000) : null,
-    }).eq("id", report.id);
-
-    if (done) {
-      after(async () => {
-        let lastError = "";
-        try {
-          const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
-          if (!pdfResp.ok) {
-            const t = await pdfResp.text().catch(() => "");
-            lastError = `PDF_${pdfResp.status}:${t.slice(0,500)}`;
-          }
-        } catch (e:any) {
-          lastError = e?.message || String(e);
-        } finally {
-          const bg = admin();
-          const { data: latest } = await bg.from("reports").select("report_json").eq("id", report.id).maybeSingle();
-          const latestJson:any = latest?.report_json || {};
-          await bg.from("reports").update({
-            report_json:{
-              ...latestJson,
-              background_running:false,
-              background_finished_at:Date.now(),
-              background_last_error:lastError || null,
-            },
-          }).eq("id", report.id);
-        }
-      });
-    } else if (internal) {
-      const noProgressCount = accepted.length ? 0 : Number(currentJson.background_no_progress_count || 0) + 1;
-      const { data: latest } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
-      const latestJson:any = latest?.report_json || {};
-      await sb.from("reports").update({
-        report_json:{
-          ...latestJson,
-          background_running:noProgressCount < 6,
-          background_heartbeat_at:Date.now(),
-          background_no_progress_count:noProgressCount,
-          background_last_error:failures.length ? failures.join(" | ").slice(0,1200) : null,
-        },
-        error_message:noProgressCount >= 6 ? "연속 생성 실패로 자동 생성이 중단되었습니다. 다시 시작해 주세요." : null,
-      }).eq("id", report.id);
-
-      if (noProgressCount < 6) kickNextWorker();
-    }
-
+    // 상태 조회 성격으로 POST가 들어와도 생성 자체는 브라우저가 담당하지 않는다.
     return J({
-      ok:true,
-      status: done ? "pdf_queued" : (accepted.length ? "generating" : "retrying"),
+      ok: true,
+      status: currentJson.pdf_ready === true ? "completed" : "generating",
       progress,
-      completed_sections:completed,
-      total_sections:REPORT_TOTAL_SECTIONS,
-      report_id:report.id,
-      pdf_ready:false,
-      phase:done ? "pdf_queued" : "writing",
-      generated_this_wave:accepted.length,
-      failed_items:failures.length,
+      completed_sections: completed,
+      total_sections: REPORT_TOTAL_SECTIONS,
+      report_id: report.id,
+      pdf_ready: currentJson.pdf_ready === true,
+      phase: currentJson.phase || "writing",
     });
-  } catch (e:any) {
+  } catch (e: any) {
     console.error("REPORT_GENERATE_ERROR", e);
-    return J({ ok:false, error:"REPORT_GENERATION_FAILED", detail:e?.message || String(e) }, 500);
+    const code = e?.message === "ORDER_NOT_FOUND" ? 404 : e?.message === "ORDER_NOT_PAID" ? 409 : 500;
+    return J({ ok: false, error: "REPORT_GENERATION_FAILED", detail: e?.message || String(e) }, code);
   }
 }
 
 export async function GET() {
-  return J({ ok:true, route:"report/generate", mode:"aqua-50-chained-background", wave_size:WAVE_SIZE, parallel_workers:PARALLEL_WORKERS, total_sections:REPORT_TOTAL_SECTIONS, prompt_version:PROMPT_VERSION, model:DEFAULT_MODEL });
+  return J({
+    ok: true,
+    route: "report/generate",
+    mode: "aqua-50-continuous-pool-background",
+    parallel_workers: PARALLEL_WORKERS,
+    total_sections: REPORT_TOTAL_SECTIONS,
+    prompt_version: PROMPT_VERSION,
+    model: DEFAULT_MODEL,
+  });
 }
