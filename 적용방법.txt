@@ -1,0 +1,27 @@
+나의사주 AQUA 50 리포트 엔진 최종 적용본
+
+1) 기존 폴더:
+   C:\Users\lovem\바이브코딩\나의사주_nextjs_v1
+
+2) 이 ZIP의 소스 파일을 기존 폴더에 덮어씁니다.
+   기존 .env.local은 그대로 유지하세요. 이 ZIP에는 보안상 .env.local을 넣지 않았습니다.
+
+3) PowerShell에서:
+   cd "C:\Users\lovem\바이브코딩\나의사주_nextjs_v1"
+   npm run build
+
+4) 빌드 성공 후:
+   git add .
+   git commit -m "replace life report with aqua 50 engine"
+   git push
+
+주요 변경:
+- 132 SECTION 제거 / 3 CHAPTER 50 SECTION
+- Person Narrative 선생성
+- SECTION별 calc subset
+- 장문 AQUA형 생성
+- 중복/일반론/저밀도 품질검사 + 실패 SECTION 재작성
+- 실제 DB 기준 0/50 진행률
+- 연한 크림 옐로우 CHAPTER + 검정 글씨
+- SECTION 강제 페이지 분리 제거
+- 기존 132 리포트는 새 엔진 버전으로 자동 재생성

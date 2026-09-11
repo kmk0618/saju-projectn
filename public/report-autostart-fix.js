@@ -62,12 +62,14 @@
       const d = await state();
       const report = d.report || null;
       const j = report?.report_json || {};
-      const completed = Number(
+      const currentEngine = String(report?.prompt_version || "").startsWith("life-report-aqua-50");
+      const completed = currentEngine ? Number(
         j.completed_sections ??
         d.sections?.length ??
         0
-      );
+      ) : 0;
       const pdfReady =
+        currentEngine &&
         report?.status === "completed" &&
         !!j.pdf_storage_path &&
         j.pdf_ready !== false;
@@ -78,7 +80,7 @@
         return;
       }
 
-      if (completed >= 132) {
+      if (completed >= 50) {
         await ensurePdf();
         await sleep(700);
         window.dispatchEvent(new CustomEvent("saju-report-progress"));

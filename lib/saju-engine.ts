@@ -174,4 +174,16 @@ function calcSaju(by,bm,bd,bh,gender,calMode,bmin,lon,eot,regionName){
 }
 
 
-export { calcSaju };
+function calcLuckData(S:any, year?:number){
+  const targetYear=year || new Date().getUTCFullYear();
+  const il=CHEONGAN.indexOf(S.ilgan);
+  const current=luckSnapshot(S);
+  const annual=[];
+  for(let y=targetYear;y<targetYear+4;y++){
+    annual.push(Object.assign({year:y,age:y-S.birth_solar.year},annotateLuck(il,saeun(y))));
+  }
+  const monthly=monthLuckPeriods(targetYear,il);
+  return { current, annual, monthly, target_year:targetYear };
+}
+
+export { calcSaju, calcLuckData };

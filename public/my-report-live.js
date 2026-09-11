@@ -66,7 +66,7 @@
     let reports=[];
     if(ids.length){
       const rr=await sb.from('reports')
-        .select('id,order_id,status,report_json,title,created_at')
+        .select('id,order_id,status,report_json,title,prompt_version,created_at')
         .in('order_id',ids);
       reports=rr.data||[];
     }
@@ -87,7 +87,7 @@
       const p=pm[o.product_id]||{};
       const r=rm[o.id]||null;
       const j=r?.report_json||{};
-      const ready=r?.status==='completed' && !!j.pdf_storage_path && j.pdf_ready!==false;
+      const ready=r?.status==='completed' && String(r?.prompt_version||'').startsWith('life-report-aqua-50') && !!j.pdf_storage_path && j.pdf_ready!==false;
       const st=badge(r?.status,ready);
       const mark=i===0?'A':String(i+1).padStart(2,'0');
       const click=ready
@@ -95,7 +95,7 @@
         : `location.href='/guest-report.html?token=${encodeURIComponent(o.guest_access_token)}'`;
       return `<div class="report" style="cursor:pointer" onclick="${click}">
         <div class="rmark">${mark}</div>
-        <div><b>${p.name||r?.title||'구매 리포트'}</b><small>${ready?'리포트 완성 · 클릭하여 열람':(j.completed_sections||0)+' / 132 생성 중'}</small></div>
+        <div><b>${p.name||r?.title||'구매 리포트'}</b><small>${ready?'리포트 완성 · 클릭하여 열람':(j.completed_sections||0)+' / 50 생성 중'}</small></div>
         <span class="status">${st}</span>
       </div>`;
     }).join('');
