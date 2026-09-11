@@ -1,12 +1,8 @@
 import { NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calcSaju, calcLuckData } from "@/lib/saju-engine";
-import {
-  REPORT_OUTLINE,
-  REPORT_TOTAL_SECTIONS,
-  REPORT_VERSION,
-  type ReportSectionSpec,
-} from "@/lib/report-spec";
+import { type ReportSectionSpec } from "@/lib/report-spec";
+import { getReportCategoryConfig, type ReportCategoryConfig } from "@/lib/report-categories";
 import {
   buildPersonNarrativePrompt,
   buildRewritePrompt,
@@ -23,7 +19,6 @@ const OPENAI_TIMEOUT_MS = 75_000;
 // Vercel 300초 제한 안에 안전하게 끝나도록 110초까지만 새 작업을 투입한다.
 const WORK_START_CUTOFF_MS = 110_000;
 const BACKGROUND_STALE_MS = 4 * 60 * 1000;
-const PROMPT_VERSION = REPORT_VERSION;
 const DEFAULT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-luna";
 const CURRENT_FLOW_YEAR = Number(process.env.REPORT_FLOW_YEAR || new Date().getFullYear());
 
@@ -214,7 +209,7 @@ const sectionItemSchema = {
   required: ["section_no","opening_sentence","content_html","key_basis","life_scenes","risk","action_point","emphasis","layout_type","checklist","table_rows"],
 };
 
-async function generateNarrative(calcCtx: any, question: string, category: string) {
+async function generateNarrative(calcCtx: any, question: string, category: string, config: ReportCategoryConfig) {
   const schema = {
     type: "object",
     additionalProperties: false,
@@ -236,7 +231,7 @@ async function generateNarrative(calcCtx: any, question: string, category: strin
   };
   return openAIJson({
     system: "당신은 계산하지 않는 명리 리포트 편집장입니다. 제공된 사실값만 해석하고 개인화 서사를 설계합니다.",
-    user: buildPersonNarrativePrompt(calcCtx, question, category),
+    user: buildPersonNarrativePrompt(calcCtx, question, category, config.title, config.focus),
     schema,
     schemaName: "person_narrative",
     maxTokens: 5000,
@@ -250,6 +245,8 @@ async function generateSectionBatch(args: {
   question: string;
   category: string;
   recent: any[];
+  reportTitle?: string;
+  reportFocus?: string;
 }) {
   const schema = {
     type: "object",
@@ -275,6 +272,8 @@ async function rewriteSection(args: {
   candidate: any;
   issues: string[];
   recent: any[];
+  reportTitle?: string;
+  reportFocus?: string;
 }) {
   const schema = { type: "object", additionalProperties: false, properties: sectionItemSchema.properties, required: sectionItemSchema.required };
   return openAIJson({
@@ -294,7 +293,7 @@ async function rewriteSection(args: {
   });
 }
 
-async function ensureInitialized(sb: any, order: any, input: any) {
+async function ensureInitialized(sb: any, order: any, input: any, config: ReportCategoryConfig) {
   let birthProfileId = order.birth_profile_id;
   let questionId = order.question_id;
 
@@ -391,12 +390,12 @@ async function ensureInitialized(sb: any, order: any, input: any) {
       birth_profile_id: birthProfileId,
       calculation_id: calcRow.id,
       question_id: questionId || null,
-      title: "종합 인생 리포트",
+      title: config.title,
       status: "generating",
       summary: input.question ? `질문: ${input.question}` : null,
-      report_json: { total_sections: REPORT_TOTAL_SECTIONS, completed_sections: 0, progress: 12, phase: "calculation_done", pdf_ready: false },
+      report_json: { report_category: config.key, report_slug: config.slug, report_subtitle: config.subtitle, total_sections: config.outline.length, completed_sections: 0, progress: 12, phase: "calculation_done", pdf_ready: false },
       generation_model: DEFAULT_MODEL,
-      prompt_version: PROMPT_VERSION,
+      prompt_version: config.version,
     }).select("*").single();
     if (error) throw new Error("REPORT_CREATE_FAILED:" + error.message);
     report = r;
@@ -405,15 +404,15 @@ async function ensureInitialized(sb: any, order: any, input: any) {
   return { birthProfileId, questionId, calcRow, report };
 }
 
-async function resetLegacyReportIfNeeded(sb: any, report: any) {
-  if (report.prompt_version === PROMPT_VERSION) return report;
+async function resetLegacyReportIfNeeded(sb: any, report: any, config: ReportCategoryConfig) {
+  if (report.prompt_version === config.version) return report;
   const oldJson: any = report.report_json || {};
   if (oldJson.pdf_storage_path) {
     await sb.storage.from("report-pdfs").remove([oldJson.pdf_storage_path]).catch(() => null);
   }
   await sb.from("report_sections").delete().eq("report_id", report.id);
   const resetJson = {
-    total_sections: REPORT_TOTAL_SECTIONS,
+    total_sections: config.outline.length,
     completed_sections: 0,
     progress: 12,
     phase: "calculation_done",
@@ -425,7 +424,7 @@ async function resetLegacyReportIfNeeded(sb: any, report: any) {
     generated_at: null,
     report_json: resetJson,
     generation_model: DEFAULT_MODEL,
-    prompt_version: PROMPT_VERSION,
+    prompt_version: config.version,
     error_message: null,
   }).eq("id", report.id).select("*").single();
   if (error) throw new Error("REPORT_VERSION_RESET_FAILED:" + error.message);
@@ -472,7 +471,7 @@ async function kickWorker(generateUrl: string, token: string) {
   }
 }
 
-async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectionSpec, content: any, rewriteCount: number, qualityIssues: string[]) {
+async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectionSpec, content: any, rewriteCount: number, qualityIssues: string[], promptVersion: string) {
   const row = {
     report_id: reportId,
     section_no: spec.section_no,
@@ -493,7 +492,7 @@ async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectio
       quality_score: qualityIssues.length ? 0.78 : 0.96,
       quality_issues: qualityIssues,
       rewrite_count: rewriteCount,
-      prompt_version: PROMPT_VERSION,
+      prompt_version: promptVersion,
     },
   };
 
@@ -505,30 +504,31 @@ async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectio
   if (insertError) throw new Error(`SECTION_${spec.section_no}_SAVE_FAILED:${insertError.message}`);
 }
 
-async function sectionCount(sb: any, reportId: string) {
-  // 예전 132섹션 데이터가 남아 있어도 현재 1~50만 진행률에 포함한다.
+async function sectionCount(sb: any, reportId: string, totalSections: number) {
+  // 예전 레거시 섹션 데이터가 남아 있어도 현재 상품의 섹션 수만 진행률에 포함한다.
   const { count, error } = await sb.from("report_sections")
     .select("id", { count: "exact", head: true })
     .eq("report_id", reportId)
     .gte("section_no", 1)
-    .lte("section_no", REPORT_TOTAL_SECTIONS);
+    .lte("section_no", totalSections);
   if (error) throw new Error("SECTION_COUNT_FAILED:" + error.message);
-  return Math.min(REPORT_TOTAL_SECTIONS, count || 0);
+  return Math.min(totalSections, count || 0);
 }
 
-async function updateProgressNow(sb: any, reportId: string, narrative: any, extra: any = {}) {
-  const completed = await sectionCount(sb, reportId);
+async function updateProgressNow(sb: any, reportId: string, narrative: any, config: ReportCategoryConfig, extra: any = {}) {
+  const totalSections = config.outline.length;
+  const completed = await sectionCount(sb, reportId, totalSections);
   const { data: latest } = await sb.from("reports").select("report_json").eq("id", reportId).maybeSingle();
   const latestJson: any = latest?.report_json || {};
-  const done = completed >= REPORT_TOTAL_SECTIONS;
-  const progress = done ? 97 : Math.min(95, Math.round(24 + (completed / REPORT_TOTAL_SECTIONS) * 70));
+  const done = completed >= totalSections;
+  const progress = done ? 97 : Math.min(95, Math.round(24 + (completed / totalSections) * 70));
   await sb.from("reports").update({
     status: "generating",
     report_json: {
       ...latestJson,
       ...extra,
       narrative,
-      total_sections: REPORT_TOTAL_SECTIONS,
+      total_sections: totalSections,
       completed_sections: completed,
       progress,
       phase: done ? "pdf_queued" : "writing",
@@ -537,7 +537,7 @@ async function updateProgressNow(sb: any, reportId: string, narrative: any, extr
       background_heartbeat_at: Date.now(),
     },
     generation_model: DEFAULT_MODEL,
-    prompt_version: PROMPT_VERSION,
+    prompt_version: config.version,
   }).eq("id", reportId);
   return { completed, done, progress };
 }
@@ -552,10 +552,11 @@ async function runGenerationSlice(token: string, requestUrl: string) {
 
   try {
     const order = await loadOrderForToken(sb, token);
+    const config = getReportCategoryConfig(order.products);
     const rawInput = (order.payment_payload as any)?.guest_input || {};
     const input = normalizeInput(rawInput);
-    const init = await ensureInitialized(sb, order, input);
-    let report = await resetLegacyReportIfNeeded(sb, init.report);
+    const init = await ensureInitialized(sb, order, input, config);
+    let report = await resetLegacyReportIfNeeded(sb, init.report, config);
     let currentJson: any = report.report_json || {};
 
     if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
@@ -570,14 +571,14 @@ async function runGenerationSlice(token: string, requestUrl: string) {
           ...currentJson,
           phase: "core_analysis",
           progress: 18,
-          total_sections: REPORT_TOTAL_SECTIONS,
+          total_sections: config.outline.length,
           completed_sections: 0,
           pdf_ready: false,
           background_running: true,
           background_heartbeat_at: Date.now(),
         },
       }).eq("id", report.id);
-      narrative = await generateNarrative(calcCtx, input.question, input.category);
+      narrative = await generateNarrative(calcCtx, input.question, input.category, config);
       const { data: latestAfterNarrative } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
       currentJson = {
         ...(latestAfterNarrative?.report_json || currentJson),
@@ -587,7 +588,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
         background_running: true,
         background_heartbeat_at: Date.now(),
       };
-      await sb.from("reports").update({ report_json: currentJson, generation_model: DEFAULT_MODEL, prompt_version: PROMPT_VERSION }).eq("id", report.id);
+      await sb.from("reports").update({ report_json: currentJson, generation_model: DEFAULT_MODEL, prompt_version: config.version }).eq("id", report.id);
     }
 
     const { data: existingRows, error: existingError } = await sb
@@ -595,15 +596,15 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       .select("section_no,content_html,content_json")
       .eq("report_id", report.id)
       .gte("section_no", 1)
-      .lte("section_no", REPORT_TOTAL_SECTIONS)
+      .lte("section_no", config.outline.length)
       .order("section_no", { ascending: true });
     if (existingError) throw new Error("SECTION_LIST_FAILED:" + existingError.message);
 
     const existingNos = new Set((existingRows || []).map((x: any) => Number(x.section_no)));
-    const missing = REPORT_OUTLINE.filter((x) => !existingNos.has(x.section_no));
+    const missing = config.outline.filter((x) => !existingNos.has(x.section_no));
 
     if (!missing.length) {
-      await updateProgressNow(sb, report.id, narrative, { background_last_error: null });
+      await updateProgressNow(sb, report.id, narrative, config, { background_last_error: null });
       const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
       if (!pdfResp.ok) {
         const t = await pdfResp.text().catch(() => "");
@@ -636,7 +637,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     let progressSerial: Promise<any> = Promise.resolve();
 
     const queueProgress = (extra: any = {}) => {
-      progressSerial = progressSerial.then(() => updateProgressNow(sb, report.id, narrative, extra));
+      progressSerial = progressSerial.then(() => updateProgressNow(sb, report.id, narrative, config, extra));
       return progressSerial;
     };
 
@@ -655,6 +656,8 @@ async function runGenerationSlice(token: string, requestUrl: string) {
         question: input.question,
         category: input.category,
         recent: recentSummary,
+        reportTitle: config.title,
+        reportFocus: config.focus,
       });
       let candidate = (generated || []).find((g: any) => Number(g.section_no) === spec.section_no) || generated?.[0];
       if (!candidate?.content_html) throw new Error(`MISSING_SECTION_${spec.section_no}`);
@@ -672,6 +675,8 @@ async function runGenerationSlice(token: string, requestUrl: string) {
           candidate,
           issues: validation.issues,
           recent: recentSummary,
+          reportTitle: config.title,
+          reportFocus: config.focus,
         });
         if (rewritten?.content_html) {
           candidate = rewritten;
@@ -683,7 +688,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       const fatalIssues = validation.issues.filter((issue) => issue.startsWith("TOO_SHORT_") || issue === "NO_FACT_BASIS");
       if (fatalIssues.length) throw new Error(`QUALITY_${spec.section_no}:${fatalIssues.join(",")}`);
 
-      await saveAcceptedSection(sb, report.id, spec, candidate, rewriteCount, validation.issues);
+      await saveAcceptedSection(sb, report.id, spec, candidate, rewriteCount, validation.issues, config.version);
       acceptedCount += 1;
       // 다음 SECTION들의 중복 검사에도 방금 완성된 결과를 바로 반영한다.
       previousCandidates.push({
@@ -723,7 +728,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     await Promise.all(Array.from({ length: Math.min(PARALLEL_WORKERS, missing.length) }, (_, i) => worker(i + 1)));
     await progressSerial;
 
-    const state = await updateProgressNow(sb, report.id, narrative, {
+    const state = await updateProgressNow(sb, report.id, narrative, config, {
       last_slice_saved: acceptedCount,
       quality_failures: failures.slice(-10),
       background_last_error: failures.length ? failures.join(" | ").slice(0, 1200) : null,
@@ -809,10 +814,11 @@ export async function POST(req: Request) {
     }
 
     const order = await loadOrderForToken(sb, token);
+    const config = getReportCategoryConfig(order.products);
     const rawInput = (order.payment_payload as any)?.guest_input || {};
     const input = normalizeInput(rawInput);
-    const init = await ensureInitialized(sb, order, input);
-    const report = await resetLegacyReportIfNeeded(sb, init.report);
+    const init = await ensureInitialized(sb, order, input, config);
+    const report = await resetLegacyReportIfNeeded(sb, init.report, config);
     const currentJson: any = report.report_json || {};
 
     if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
@@ -820,15 +826,16 @@ export async function POST(req: Request) {
         ok: true,
         status: "completed",
         progress: 100,
-        completed_sections: REPORT_TOTAL_SECTIONS,
-        total_sections: REPORT_TOTAL_SECTIONS,
+        completed_sections: config.outline.length,
+        total_sections: config.outline.length,
         report_id: report.id,
         pdf_ready: true,
       });
     }
 
-    const completed = await sectionCount(sb, report.id);
-    const progress = Math.min(95, Math.max(Number(currentJson.progress || 12), Math.round(24 + (completed / REPORT_TOTAL_SECTIONS) * 70)));
+    const totalSections = config.outline.length;
+    const completed = await sectionCount(sb, report.id, totalSections);
+    const progress = Math.min(95, Math.max(Number(currentJson.progress || 12), Math.round(24 + (completed / totalSections) * 70)));
 
     if (background) {
       const heartbeatAt = Number(currentJson.background_heartbeat_at || currentJson.background_started_at || 0);
@@ -837,7 +844,7 @@ export async function POST(req: Request) {
       if (!stillRunning) {
         const nextJson = {
           ...currentJson,
-          total_sections: REPORT_TOTAL_SECTIONS,
+          total_sections: config.outline.length,
           completed_sections: completed,
           progress,
           background_running: true,
@@ -858,7 +865,7 @@ export async function POST(req: Request) {
         status: stillRunning ? "background_running" : "background_started",
         progress,
         completed_sections: completed,
-        total_sections: REPORT_TOTAL_SECTIONS,
+        total_sections: config.outline.length,
         report_id: report.id,
         pdf_ready: currentJson.pdf_ready === true,
       }, 202);
@@ -870,7 +877,7 @@ export async function POST(req: Request) {
       status: currentJson.pdf_ready === true ? "completed" : "generating",
       progress,
       completed_sections: completed,
-      total_sections: REPORT_TOTAL_SECTIONS,
+      total_sections: config.outline.length,
       report_id: report.id,
       pdf_ready: currentJson.pdf_ready === true,
       phase: currentJson.phase || "writing",
@@ -886,10 +893,9 @@ export async function GET() {
   return J({
     ok: true,
     route: "report/generate",
-    mode: "aqua-50-continuous-pool-background",
+    mode: "aqua-multi-category-continuous-pool-background",
     parallel_workers: PARALLEL_WORKERS,
-    total_sections: REPORT_TOTAL_SECTIONS,
-    prompt_version: PROMPT_VERSION,
+    supported_categories: ["life-report", "child-report", "couple-compatibility", "parent-child-compatibility", "new-year"],
     model: DEFAULT_MODEL,
   });
 }

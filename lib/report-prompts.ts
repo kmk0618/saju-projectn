@@ -1,11 +1,15 @@
 import type { ReportSectionSpec } from "@/lib/report-spec";
 
-export function buildPersonNarrativePrompt(calc: any, question: string, category: string) {
+export function buildPersonNarrativePrompt(calc: any, question: string, category: string, reportTitle = "종합 인생 리포트", reportFocus = "") {
   return `
 당신은 유료 개인 명리 리포트의 편집장입니다.
 계산은 절대 하지 말고 제공된 deterministic 계산값만 사실로 사용하세요.
 
-50개 섹션을 쓰기 전에 이 사람의 전체 서사를 먼저 고정합니다.
+선택한 상품의 전체 섹션을 쓰기 전에 이 사람의 전체 서사를 먼저 고정합니다.
+
+[리포트 상품]
+${reportTitle}
+${reportFocus ? `[상품별 편집 방향]\n${reportFocus}` : ""}
 
 반드시 다음 JSON 구조로만 답하세요.
 {
@@ -43,6 +47,8 @@ export function buildSectionPrompt(args: {
   question: string;
   category: string;
   recent: Array<{ section_no: number; opening_sentence?: string; key_basis?: string[]; action_point?: string }>;
+  reportTitle?: string;
+  reportFocus?: string;
 }) {
   const requested = args.specs.map((s) => ({
     section_no: s.section_no,
@@ -58,6 +64,10 @@ export function buildSectionPrompt(args: {
   return `
 아래 섹션들만 작성하세요. 계산은 절대 하지 않습니다.
 제공된 deterministic 사실과 PERSON NARRATIVE만 사용합니다.
+
+[리포트 상품]
+${args.reportTitle || "종합 인생 리포트"}
+${args.reportFocus ? `[상품별 편집 방향]\n${args.reportFocus}` : ""}
 
 [AQUA 편집 원칙]
 - 결론부터 주고 그 다음 근거를 설명합니다.
@@ -107,10 +117,11 @@ content_html에는 <p>, <p class="lead">, <strong>, <h3>, <div class="subhead">,
 - table_rows: 필요한 경우 [{"label":"...","value":"..."}], 아니면 []
 
 편집 레이아웃 강제 규칙:
-- SECTION 01 기본 인적 정보: 입력값/계산 기준을 실제 HTML 표로 보여주세요.
-- SECTION 02 사주 원국 전체표: 년주·월주·일주·시주, 천간/지지/십성/지장간 등 전달된 근거를 실제 HTML 표로 보여주세요.
-- SECTION 04 오행 분포, SECTION 16 십성 분포, SECTION 22·23·27 등 layout_type=table 섹션은 표가 핵심 시각자료이므로 실제 <table>을 반드시 포함하세요.
+- layout_type=table인 섹션은 실제 <table>을 반드시 포함하세요.
+- layout_type=checklist인 섹션은 실제 <ul class="check">를 반드시 포함하세요.
+- 기본정보·원국비교·분포처럼 표가 핵심인 제목은 전달된 사실 범위에서 실제 표로 보여주세요.
 - 같은 표/체크리스트 틀을 모든 섹션에 반복하지 마세요. layout_type 계약에 맞는 섹션에서만 사용하세요.
+- 상품 주제와 맞지 않는 종합사주용 소재를 억지로 끼워 넣지 마세요.
 `.trim();
 }
 

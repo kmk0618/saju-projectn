@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { buildReportHtml, htmlToPdfBuffer, PDF_RENDERER_VERSION } from "@/lib/report-pdf";
-import { REPORT_TOTAL_SECTIONS, REPORT_VERSION } from "@/lib/report-spec";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -35,7 +34,8 @@ async function loadOrderReport(sb: any, token: string) {
 
 async function ensurePdf(sb: any, order: any, report: any) {
   const rj: any = report.report_json || {};
-  if (report.prompt_version !== REPORT_VERSION) throw new Error(`PDF_NOT_READY:0/${REPORT_TOTAL_SECTIONS}`);
+  const totalSections = Number(rj.total_sections || 0);
+  if (!totalSections) throw new Error("PDF_REPORT_SPEC_MISSING");
   if (rj.pdf_storage_path && rj.pdf_ready !== false && rj.pdf_renderer_version === PDF_RENDERER_VERSION) return { path:rj.pdf_storage_path, size:rj.pdf_size || null };
 
   const { data: sections, error: sectionsError } = await sb
@@ -44,18 +44,18 @@ async function ensurePdf(sb: any, order: any, report: any) {
     .eq("report_id", report.id)
     .order("section_no", { ascending:true });
   if (sectionsError) throw new Error("SECTION_LOAD_FAILED:" + sectionsError.message);
-  if (!sections || sections.length < REPORT_TOTAL_SECTIONS) throw new Error(`PDF_NOT_READY:${sections?.length || 0}/${REPORT_TOTAL_SECTIONS}`);
+  if (!sections || sections.filter((x:any) => Number(x.section_no) >= 1 && Number(x.section_no) <= totalSections).length < totalSections) throw new Error(`PDF_NOT_READY:${sections?.length || 0}/${totalSections}`);
 
   await sb.from("reports").update({
     status:"generating",
-    report_json:{ ...rj, total_sections:REPORT_TOTAL_SECTIONS, completed_sections:REPORT_TOTAL_SECTIONS, progress:97, phase:"pdf_generating", pdf_ready:false },
+    report_json:{ ...rj, total_sections:totalSections, completed_sections:totalSections, progress:97, phase:"pdf_generating", pdf_ready:false },
     error_message:null,
   }).eq("id", report.id);
 
   const input = order.payment_payload?.guest_input || {};
   const html = buildReportHtml({
     title: report.title || "종합 인생 리포트",
-    subtitle: "원국 구조부터 현재 흐름과 실행 전략까지 연결한 개인맞춤 종합 인생 리포트",
+    subtitle: rj.report_subtitle || "개인맞춤 사주 리포트",
     question: input.question || "",
     generatedAt: new Date().toLocaleDateString("ko-KR", { timeZone:"Asia/Seoul" }),
     sections,
@@ -63,14 +63,15 @@ async function ensurePdf(sb: any, order: any, report: any) {
     narrative:rj.narrative || null,
   });
   const pdf = await htmlToPdfBuffer(html);
-  const path = `guest/${order.id}/${report.id}-${REPORT_VERSION}-${PDF_RENDERER_VERSION}.pdf`;
+  const safeVersion = String(report.prompt_version || rj.report_category || "report").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const path = `guest/${order.id}/${report.id}-${safeVersion}-${PDF_RENDERER_VERSION}.pdf`;
   const { error: uploadError } = await sb.storage.from("report-pdfs").upload(path, pdf, { contentType:"application/pdf", cacheControl:"0", upsert:true });
   if (uploadError) throw new Error("PDF_UPLOAD_FAILED:" + uploadError.message);
 
   const nextJson = {
     ...rj,
-    total_sections:REPORT_TOTAL_SECTIONS,
-    completed_sections:REPORT_TOTAL_SECTIONS,
+    total_sections:totalSections,
+    completed_sections:totalSections,
     progress:100,
     phase:"completed",
     pdf_ready:true,
@@ -83,7 +84,7 @@ async function ensurePdf(sb: any, order: any, report: any) {
     status:"completed",
     generated_at:report.generated_at || new Date().toISOString(),
     report_json:nextJson,
-    prompt_version:REPORT_VERSION,
+    prompt_version:report.prompt_version,
     error_message:null,
   }).eq("id", report.id);
   if (updateError) throw new Error("PDF_STATUS_SAVE_FAILED:" + updateError.message);
