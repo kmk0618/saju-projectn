@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminSupabase, getPortOnePublicConfig } from "@/lib/portone";
+import { getAdminSupabase, getPortOneV1PublicConfig } from "@/lib/portone";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       return J({ ok: false, error: "INVALID_PRODUCT_PRICE" }, 500);
     }
 
-    const paymentId = `saju-${crypto.randomUUID()}`;
+    const merchantUid = `saju-${crypto.randomUUID()}`;
     const input = body.input && typeof body.input === "object" ? body.input : {};
 
     const { data: order, error: orderError } = await sb
@@ -64,8 +64,8 @@ export async function POST(req: Request) {
         product_id: product.id,
         birth_profile_id: user ? (body.birth_profile_id || null) : null,
         question_id: user ? (body.question_id || null) : null,
-        merchant_uid: paymentId,
-        pg_provider: "PORTONE_V2",
+        merchant_uid: merchantUid,
+        pg_provider: "PORTONE_V1",
         pg_payment_id: null,
         amount_krw: amount,
         status: "pending",
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         guest_email: user ? null : guestEmail,
         payment_payload: {
           test_mode: false,
-          payment_id: paymentId,
+          merchant_uid: merchantUid,
           listed_amount_krw: amount,
           guest_input: input,
           prepared_at: new Date().toISOString(),
@@ -87,16 +87,16 @@ export async function POST(req: Request) {
       return J({ ok: false, error: "ORDER_CREATE_FAILED", detail: orderError?.message || "NO_ORDER" }, 500);
     }
 
-    const { storeId, channelKey } = getPortOnePublicConfig();
+    const { impCode, channelKey } = getPortOneV1PublicConfig();
 
     return J({
       ok: true,
       order_id: order.id,
-      payment_id: order.merchant_uid,
+      merchant_uid: order.merchant_uid,
       amount_krw: order.amount_krw,
       guest_token: order.guest_access_token,
       product: { slug: product.slug, name: product.name, report_type: product.report_type },
-      portone: { store_id: storeId, channel_key: channelKey },
+      portone: { imp_code: impCode, channel_key: channelKey },
     });
   } catch (e: any) {
     console.error("PAYMENT_PREPARE_ERROR", e);

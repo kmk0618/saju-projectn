@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminSupabase, getPortOnePayment, markOrderPaidFromPortOne } from "@/lib/portone";
+import { getAdminSupabase, getPortOneV1Payment, markOrderPaidFromPortOneV1 } from "@/lib/portone";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -17,9 +17,12 @@ export async function POST(req: Request) {
     if (!body) return J({ ok: false, error: "INVALID_JSON" }, 400);
 
     const orderId = String(body.order_id || "").trim();
-    const paymentId = String(body.payment_id || "").trim();
+    const merchantUid = String(body.merchant_uid || "").trim();
+    const impUid = String(body.imp_uid || "").trim();
     const guestToken = String(body.guest_token || "").trim();
-    if (!orderId || !paymentId) return J({ ok: false, error: "ORDER_AND_PAYMENT_REQUIRED" }, 400);
+    if (!orderId || !merchantUid || !impUid) {
+      return J({ ok: false, error: "ORDER_MERCHANT_IMP_REQUIRED" }, 400);
+    }
 
     const sb = getAdminSupabase();
     const { data: order, error: orderError } = await sb
@@ -30,7 +33,7 @@ export async function POST(req: Request) {
 
     if (orderError) return J({ ok: false, error: "ORDER_LOOKUP_FAILED", detail: orderError.message }, 500);
     if (!order) return J({ ok: false, error: "ORDER_NOT_FOUND" }, 404);
-    if (String(order.merchant_uid) !== paymentId) return J({ ok: false, error: "PAYMENT_ID_MISMATCH" }, 409);
+    if (String(order.merchant_uid) !== merchantUid) return J({ ok: false, error: "MERCHANT_UID_MISMATCH" }, 409);
 
     if (order.user_id) {
       const authHeader = req.headers.get("authorization") || "";
@@ -48,8 +51,8 @@ export async function POST(req: Request) {
       return J({ ok: true, already_paid: true, guest_token: order.guest_access_token });
     }
 
-    const payment = await getPortOnePayment(paymentId);
-    const updated = await markOrderPaidFromPortOne(sb, order, payment);
+    const payment = await getPortOneV1Payment(impUid);
+    const updated = await markOrderPaidFromPortOneV1(sb, order, payment);
 
     return J({
       ok: true,
@@ -60,7 +63,7 @@ export async function POST(req: Request) {
   } catch (e: any) {
     console.error("PAYMENT_COMPLETE_ERROR", e);
     const msg = e?.message || String(e);
-    const status = msg.startsWith("PAYMENT_NOT_PAID") ? 409 : msg.startsWith("PAYMENT_AMOUNT_MISMATCH") ? 409 : 500;
+    const status = msg.startsWith("PAYMENT_NOT_PAID") || msg.startsWith("PAYMENT_AMOUNT_MISMATCH") || msg.startsWith("MERCHANT_UID_MISMATCH") ? 409 : 500;
     return J({ ok: false, error: "PAYMENT_VERIFY_FAILED", detail: msg }, status);
   }
 }

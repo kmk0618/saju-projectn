@@ -9,75 +9,77 @@ export function getAdminSupabase() {
   });
 }
 
-export function getPortOnePublicConfig() {
-  const storeId = process.env.NEXT_PUBLIC_PORTONE_STORE_ID?.trim();
+export function getPortOneV1PublicConfig() {
+  const impCode = process.env.NEXT_PUBLIC_PORTONE_IMP_CODE?.trim();
   const channelKey = process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY?.trim();
-  if (!storeId) throw new Error("MISSING_PORTONE_STORE_ID");
+  if (!impCode) throw new Error("MISSING_PORTONE_IMP_CODE");
   if (!channelKey) throw new Error("MISSING_PORTONE_CHANNEL_KEY");
-  return { storeId, channelKey };
+  return { impCode, channelKey };
 }
 
-export async function getPortOnePayment(paymentId: string) {
-  const secret = process.env.PORTONE_API_SECRET?.trim();
-  if (!secret) throw new Error("MISSING_PORTONE_API_SECRET");
+async function getPortOneV1AccessToken() {
+  const impKey = process.env.PORTONE_V1_API_KEY?.trim();
+  const impSecret = process.env.PORTONE_V1_API_SECRET?.trim();
+  if (!impKey) throw new Error("MISSING_PORTONE_V1_API_KEY");
+  if (!impSecret) throw new Error("MISSING_PORTONE_V1_API_SECRET");
 
+  const response = await fetch("https://api.iamport.kr/users/getToken", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ imp_key: impKey, imp_secret: impSecret }),
+    cache: "no-store",
+  });
+  const data: any = await response.json().catch(() => null);
+  if (!response.ok || data?.code !== 0 || !data?.response?.access_token) {
+    throw new Error(`PORTONE_V1_TOKEN_FAILED:${data?.message || response.status}`);
+  }
+  return String(data.response.access_token);
+}
+
+export async function getPortOneV1Payment(impUid: string) {
+  if (!impUid) throw new Error("IMP_UID_REQUIRED");
+  const accessToken = await getPortOneV1AccessToken();
   const response = await fetch(
-    `https://api.portone.io/payments/${encodeURIComponent(paymentId)}`,
+    `https://api.iamport.kr/payments/${encodeURIComponent(impUid)}`,
     {
       method: "GET",
       headers: {
-        Authorization: `PortOne ${secret}`,
+        Authorization: accessToken,
         Accept: "application/json",
       },
       cache: "no-store",
     }
   );
-
-  const raw = await response.text();
-  let data: any = null;
-  try {
-    data = raw ? JSON.parse(raw) : null;
-  } catch {
-    throw new Error(`PORTONE_NON_JSON_${response.status}`);
+  const data: any = await response.json().catch(() => null);
+  if (!response.ok || data?.code !== 0 || !data?.response) {
+    throw new Error(`PORTONE_V1_LOOKUP_FAILED:${data?.message || response.status}`);
   }
-
-  if (!response.ok) {
-    const message = data?.message || data?.type || raw || `HTTP_${response.status}`;
-    throw new Error(`PORTONE_LOOKUP_FAILED:${message}`);
-  }
-  return data;
+  return data.response;
 }
 
-export function portOnePaidAmount(payment: any): number | null {
-  const candidates = [
-    payment?.amount?.total,
-    payment?.totalAmount,
-    payment?.amount,
-  ];
-  for (const value of candidates) {
-    const n = Number(value);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
+function isoFromUnixSeconds(value: any) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return new Date().toISOString();
+  return new Date(n * 1000).toISOString();
 }
 
-export async function markOrderPaidFromPortOne(
+export async function markOrderPaidFromPortOneV1(
   sb: ReturnType<typeof getAdminSupabase>,
   order: any,
   payment: any
 ) {
-  if (!payment || String(payment.status || "").toUpperCase() !== "PAID") {
+  if (!payment || String(payment.status || "").toLowerCase() !== "paid") {
     throw new Error(`PAYMENT_NOT_PAID:${payment?.status || "UNKNOWN"}`);
   }
 
   const expected = Number(order.amount_krw);
-  const actual = portOnePaidAmount(payment);
-  if (!Number.isFinite(expected) || actual === null || actual !== expected) {
+  const actual = Number(payment.amount);
+  if (!Number.isFinite(expected) || !Number.isFinite(actual) || actual !== expected) {
     throw new Error(`PAYMENT_AMOUNT_MISMATCH:${actual}:${expected}`);
   }
 
-  if (payment.id && String(payment.id) !== String(order.merchant_uid)) {
-    throw new Error("PAYMENT_ID_MISMATCH");
+  if (String(payment.merchant_uid || "") !== String(order.merchant_uid || "")) {
+    throw new Error("MERCHANT_UID_MISMATCH");
   }
 
   const existingPayload = order.payment_payload && typeof order.payment_payload === "object"
@@ -89,19 +91,16 @@ export async function markOrderPaidFromPortOne(
     test_mode: false,
     charged_amount_krw: actual,
     listed_amount_krw: expected,
-    portone: payment,
+    portone_v1: payment,
   };
-
-  const paidAt = payment.paidAt || payment.statusChangedAt || new Date().toISOString();
-  const pgPaymentId = payment.transactionId || payment.id || order.merchant_uid;
 
   const { data: updated, error } = await sb
     .from("orders")
     .update({
       status: "paid",
-      paid_at: paidAt,
-      pg_provider: "PORTONE_V2",
-      pg_payment_id: pgPaymentId,
+      paid_at: isoFromUnixSeconds(payment.paid_at),
+      pg_provider: "PORTONE_V1",
+      pg_payment_id: String(payment.imp_uid || payment.pg_tid || ""),
       payment_payload: payload,
     })
     .eq("id", order.id)

@@ -150,7 +150,7 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
   .brand:after{display:none}
 }
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+<script src="https://cdn.iamport.kr/v1/iamport.js"></script>
   <link rel="icon" type="image/png" href="/favicon.png">
 </head><body>
 <header class="top"><div class="topin"><div class="brand" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="cursor:pointer">나의<b>사주</b></div><nav class="nav"><a href="#free">무료 한 줄 사주</a><a href="#reports">리포트</a><a href="#relation">궁합·가족</a><a href="#my">MY</a></nav><div class="spacer"></div><button class="mybtn" id="authBtn" onclick="handleAuthButton()">로그인</button><button class="mybtn" onclick="document.querySelector('#my').scrollIntoView()">MY REPORT</button></div></header>
@@ -1083,7 +1083,7 @@ async function confirmCheckout(){
   const oldText=buyBtn?.textContent||'';
 
   try{
-    if(!window.PortOne?.requestPayment) throw new Error('포트원 결제 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+    if(!window.IMP?.request_pay) throw new Error('포트원 V1 결제 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
     if(buyBtn){buyBtn.disabled=true;buyBtn.textContent='결제 준비 중...';}
 
     let session=null;
@@ -1113,35 +1113,39 @@ async function confirmCheckout(){
     try{
       localStorage.setItem('saju_pending_portone_payment',JSON.stringify({
         order_id:prep.order_id,
-        payment_id:prep.payment_id,
+        merchant_uid:prep.merchant_uid,
         guest_token:prep.guest_token,
         created_at:new Date().toISOString()
       }));
     }catch(e){}
 
     if(buyBtn) buyBtn.textContent='결제창 여는 중...';
-    const payResponse=await window.PortOne.requestPayment({
-      storeId:prep.portone.store_id,
-      channelKey:prep.portone.channel_key,
-      paymentId:prep.payment_id,
-      orderName:prep.product.name,
-      totalAmount:Number(prep.amount_krw),
-      currency:'CURRENCY_KRW',
-      payMethod:'CARD',
-      redirectUrl:location.origin+'/payment-return.html',
-      customer:isGuest?{email:guestEmail}:(user?.email?{email:user.email}:undefined)
+    window.IMP.init(prep.portone.imp_code);
+
+    const payResponse=await new Promise((resolve,reject)=>{
+      window.IMP.request_pay({
+        channelKey:prep.portone.channel_key,
+        pay_method:'card',
+        merchant_uid:prep.merchant_uid,
+        name:prep.product.name,
+        amount:Number(prep.amount_krw),
+        buyer_email:isGuest?guestEmail:(user?.email||''),
+        m_redirect_url:location.origin+'/payment-return.html'
+      },function(response){
+        if(response?.success) resolve(response);
+        else reject(new Error(response?.error_msg||'결제가 취소되었거나 완료되지 않았습니다.'));
+      });
     });
 
-    if(payResponse?.code){
-      throw new Error(payResponse.message||'결제가 취소되었거나 완료되지 않았습니다.');
-    }
+    if(!payResponse?.imp_uid) throw new Error('포트원 결제번호(imp_uid)를 받지 못했습니다.');
 
     if(buyBtn) buyBtn.textContent='결제 확인 중...';
     const completeRes=await fetch('/api/payment/complete',{
       method:'POST',headers,
       body:JSON.stringify({
         order_id:prep.order_id,
-        payment_id:prep.payment_id,
+        merchant_uid:prep.merchant_uid,
+        imp_uid:payResponse.imp_uid,
         guest_token:prep.guest_token
       })
     });
@@ -1150,7 +1154,7 @@ async function confirmCheckout(){
       throw new Error((complete?.error||'결제 확인 실패')+(complete?.detail?' : '+complete.detail:''));
     }
 
-    try{localStorage.setItem('saju_last_paid_order',JSON.stringify({order_id:prep.order_id,payment_id:prep.payment_id,guest_token:complete.guest_token||prep.guest_token,created_at:new Date().toISOString()}));}catch(e){}
+    try{localStorage.setItem('saju_last_paid_order',JSON.stringify({order_id:prep.order_id,merchant_uid:prep.merchant_uid,imp_uid:payResponse.imp_uid,guest_token:complete.guest_token||prep.guest_token,created_at:new Date().toISOString()}));}catch(e){}
     try{localStorage.removeItem('saju_pending_portone_payment');}catch(e){}
     closeModal();
     location.href='/guest-report.html?token='+encodeURIComponent(complete.guest_token||prep.guest_token);
