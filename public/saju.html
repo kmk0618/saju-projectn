@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -150,6 +150,7 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
   .brand:after{display:none}
 }
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
   <link rel="icon" type="image/png" href="/favicon.png">
 </head><body>
 <header class="top"><div class="topin"><div class="brand" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="cursor:pointer">나의<b>사주</b></div><nav class="nav"><a href="#free">무료 한 줄 사주</a><a href="#reports">리포트</a><a href="#relation">궁합·가족</a><a href="#my">MY</a></nav><div class="spacer"></div><button class="mybtn" id="authBtn" onclick="handleAuthButton()">로그인</button><button class="mybtn" onclick="document.querySelector('#my').scrollIntoView()">MY REPORT</button></div></header>
@@ -1057,16 +1058,10 @@ async function confirmCheckout(){
 
   const user=await getFamilyUser();
   const isGuest=!user;
-
-  if(!isGuest){
-    showToast('이번 무료 테스트는 비회원 상태에서 진행해 주세요.');
-    return;
-  }
-
   const guestEmail=(document.getElementById('guestCheckoutEmail')?.value||'').trim();
 
-  if(guestEmail.toLowerCase()!=='lovemk0618@naver.com'){
-    showToast('무료 테스트는 지정된 테스트 이메일로만 가능합니다.');
+  if(isGuest && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)){
+    showToast('리포트를 확인할 이메일을 정확히 입력해 주세요.');
     document.getElementById('guestCheckoutEmail')?.focus();
     return;
   }
@@ -1081,70 +1076,92 @@ async function confirmCheckout(){
     '신년 운세':'new-year',
     '신년운세':'new-year'
   };
-
   const productSlug=productSlugMap[checkoutProduct.name];
-
-  if(!productSlug){
-    showToast('상품코드를 찾지 못했습니다: '+checkoutProduct.name);
-    return;
-  }
+  if(!productSlug){showToast('상품코드를 찾지 못했습니다: '+checkoutProduct.name);return;}
 
   const buyBtn=document.getElementById('modalBuyBtn');
   const oldText=buyBtn?.textContent||'';
 
   try{
-    if(buyBtn){
-      buyBtn.disabled=true;
-      buyBtn.textContent='테스트 주문 만드는 중...';
+    if(!window.PortOne?.requestPayment) throw new Error('포트원 결제 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+    if(buyBtn){buyBtn.disabled=true;buyBtn.textContent='결제 준비 중...';}
+
+    let session=null;
+    if(!isGuest && familySupabase){
+      const {data}=await familySupabase.auth.getSession();
+      session=data?.session||null;
+      if(!session?.access_token) throw new Error('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
     }
 
-    const response=await fetch('/api/test-guest-order-v2',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
+    const headers={'Content-Type':'application/json'};
+    if(session?.access_token) headers.Authorization='Bearer '+session.access_token;
+
+    const prepRes=await fetch('/api/payment/prepare',{
+      method:'POST',headers,
       body:JSON.stringify({
-        guest_email:guestEmail,
+        guest_email:isGuest?guestEmail:null,
         product_slug:productSlug,
+        birth_profile_id:checkoutProduct.birth_profile_id||null,
+        question_id:checkoutProduct.question_id||null,
+        calculation_id:checkoutProduct.calculation_id||null,
         input:collectGuestCheckoutPayload()
       })
     });
-
-    const rawText=await response.text();
-    let result=null;
+    const prep=await prepRes.json().catch(()=>null);
+    if(!prepRes.ok||!prep?.ok) throw new Error((prep?.error||'결제 주문 생성 실패')+(prep?.detail?' : '+prep.detail:''));
 
     try{
-      result=rawText ? JSON.parse(rawText) : null;
-    }catch(parseErr){
-      console.error('API NON-JSON RESPONSE:', rawText);
-      throw new Error('서버 응답 형식 오류 ('+response.status+')');
+      localStorage.setItem('saju_pending_portone_payment',JSON.stringify({
+        order_id:prep.order_id,
+        payment_id:prep.payment_id,
+        guest_token:prep.guest_token,
+        created_at:new Date().toISOString()
+      }));
+    }catch(e){}
+
+    if(buyBtn) buyBtn.textContent='결제창 여는 중...';
+    const payResponse=await window.PortOne.requestPayment({
+      storeId:prep.portone.store_id,
+      channelKey:prep.portone.channel_key,
+      paymentId:prep.payment_id,
+      orderName:prep.product.name,
+      totalAmount:Number(prep.amount_krw),
+      currency:'CURRENCY_KRW',
+      payMethod:'CARD',
+      redirectUrl:location.origin+'/payment-return.html',
+      customer:isGuest?{email:guestEmail}:(user?.email?{email:user.email}:undefined)
+    });
+
+    if(payResponse?.code){
+      throw new Error(payResponse.message||'결제가 취소되었거나 완료되지 않았습니다.');
     }
 
-    if(!result){
-      throw new Error('서버에서 빈 응답이 왔습니다 ('+response.status+')');
+    if(buyBtn) buyBtn.textContent='결제 확인 중...';
+    const completeRes=await fetch('/api/payment/complete',{
+      method:'POST',headers,
+      body:JSON.stringify({
+        order_id:prep.order_id,
+        payment_id:prep.payment_id,
+        guest_token:prep.guest_token
+      })
+    });
+    const complete=await completeRes.json().catch(()=>null);
+    if(!completeRes.ok||!complete?.ok){
+      throw new Error((complete?.error||'결제 확인 실패')+(complete?.detail?' : '+complete.detail:''));
     }
 
-    if(!response.ok||!result.ok){
-      throw new Error((result.error||'TEST_ORDER_FAILED')+(result.detail?' : '+result.detail:''));
-    }
-
-    localStorage.setItem('saju_test_guest_order',JSON.stringify({
-      ...result,
-      created_at:new Date().toISOString()
-    }));
-
+    try{localStorage.setItem('saju_last_paid_order',JSON.stringify({order_id:prep.order_id,payment_id:prep.payment_id,guest_token:complete.guest_token||prep.guest_token,created_at:new Date().toISOString()}));}catch(e){}
+    try{localStorage.removeItem('saju_pending_portone_payment');}catch(e){}
     closeModal();
-    console.log('[SAJU TEST ORDER]',result);
-    location.href='/guest-report.html?token='+encodeURIComponent(result.guest_token);
-
+    location.href='/guest-report.html?token='+encodeURIComponent(complete.guest_token||prep.guest_token);
   }catch(err){
-    console.error(err);
-    showToast('테스트 주문 생성 실패: '+(err?.message||err));
+    console.error('[PORTONE CHECKOUT]',err);
+    showToast('결제 실패: '+(err?.message||err));
   }finally{
-    if(buyBtn){
-      buyBtn.disabled=false;
-      buyBtn.textContent=oldText||'비회원으로 구매하기';
-    }
+    if(buyBtn){buyBtn.disabled=false;buyBtn.textContent=oldText||(isGuest?'비회원으로 구매하기':'구매하기');}
   }
-}function closeModal(){document.getElementById('modalBack').style.display='none'}document.getElementById('hu').addEventListener('change',e=>{document.getElementById('h').disabled=e.target.checked;document.getElementById('mi').disabled=e.target.checked;document.getElementById('region').disabled=e.target.checked});
+}
+function closeModal(){document.getElementById('modalBack').style.display='none'}document.getElementById('hu').addEventListener('change',e=>{document.getElementById('h').disabled=e.target.checked;document.getElementById('mi').disabled=e.target.checked;document.getElementById('region').disabled=e.target.checked});
 
 const REPORT_PREVIEWS=[
   {src:'/report-preview/page-01.png',title:'도입 · 리포트 시작',desc:'첫 페이지와 전체 분위기를 먼저 보여줍니다.'},
@@ -1591,7 +1608,7 @@ window.addEventListener('focus',()=>setTimeout(loadFamilyProfiles,150));
 
 <script src="/my-report-live.js?v=20260911"></script>
 <script src="/auth-state-fix.js?v=20260910"></script>
-<script src="/member-test-checkout.js?v=20260910b"></script>
+
 </body></html>
 
 
