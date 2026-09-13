@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { buildReportHtml, htmlToPdfBuffer, PDF_RENDERER_VERSION } from "@/lib/report-pdf";
+import { auditCustomerFacingChildReport } from "@/lib/report-quality";
+import { auditChildReportDepth } from "@/lib/child/child-quality";
+import { REPORT_CATEGORY_CONFIGS } from "@/lib/report-categories";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -46,6 +49,18 @@ async function ensurePdf(sb: any, order: any, report: any) {
   if (sectionsError) throw new Error("SECTION_LOAD_FAILED:" + sectionsError.message);
   if (!sections || sections.filter((x:any) => Number(x.section_no) >= 1 && Number(x.section_no) <= totalSections).length < totalSections) throw new Error(`PDF_NOT_READY:${sections?.length || 0}/${totalSections}`);
 
+  if (String(rj.report_category || "life") === "child") {
+    const audit = auditCustomerFacingChildReport(sections as any[], rj.narrative || null);
+    const depthAudit = auditChildReportDepth(sections as any[], REPORT_CATEGORY_CONFIGS.child.outline, rj.narrative || null);
+    if (!audit.ok || !depthAudit.ok) {
+      const detail = [...audit.failures, ...depthAudit.failures]
+        .map((x) => `S${x.section_no}:${x.issues.join("+")}`)
+        .join("|")
+        .slice(0, 2400);
+      throw new Error(`PDF_CHILD_CONTENT_AUDIT_FAILED:${detail}`);
+    }
+  }
+
   await sb.from("reports").update({
     status:"generating",
     report_json:{ ...rj, total_sections:totalSections, completed_sections:totalSections, progress:97, phase:"pdf_generating", pdf_ready:false },
@@ -61,6 +76,7 @@ async function ensurePdf(sb: any, order: any, report: any) {
     sections,
     input,
     narrative:rj.narrative || null,
+    reportCategory: String(rj.report_category || "life"),
   });
   const pdf = await htmlToPdfBuffer(html);
   const safeVersion = String(report.prompt_version || rj.report_category || "report").replace(/[^a-zA-Z0-9_-]/g, "_");

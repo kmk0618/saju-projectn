@@ -1,0 +1,22 @@
+자녀사주 고객용 본문 차단장치
+
+1. 생성 프롬프트 차단
+- 지침/번역규칙/calc/subset/만세력 엔진/내부 데이터 등 제작자 시점 표현 금지
+
+2. SECTION 저장 전 차단
+- 고객에게 보이는 모든 필드(content_html, opening, 생활장면, 위험, 실행, 강조, 체크리스트, 표)을 검사
+- 금지 표현이 있으면 최대 4회 전면 재작성
+- 4회 후에도 남으면 해당 SECTION 저장 금지
+
+3. 전체 서사 차단
+- PROLOGUE/CHAPTER 핵심 메시지에 쓰이는 narrative도 동일 검사
+- 최대 4회 재생성 후 통과하지 않으면 생성 중단
+
+4. PDF 직전 최종 차단
+- 50 SECTION + narrative 전체 재검사
+- 하나라도 내부 표현이 남으면 PDF 생성/업로드/완료 상태 전환을 모두 금지
+
+추가
+- child-report 버전을 child-report-aqua-50-v3-strict로 올려 기존 v2 섹션을 자동 폐기 후 재생성
+- PDF renderer 버전도 aqua50-editorial-v5-child-strict로 갱신
+- 기존 종합사주 폰트/레이아웃 CSS는 유지하고 자녀용 정적 문구만 고객 친화적으로 수정

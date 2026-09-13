@@ -28,6 +28,7 @@ ${reportFocus ? `[상품별 편집 방향]\n${reportFocus}` : ""}
 - 강점과 그림자를 동시에 잡되 같은 표현 반복 금지.
 - 질문은 마지막 챕터에서 직접 회수할 수 있도록 핵심을 잡기.
 - 건강·투자 관련 내용은 단정하지 말기.
+- 고객에게 보여질 문장에는 작성 규칙이나 생성 과정이 드러나면 안 됩니다. “지침”, “번역 규칙”, “자녀판”, “프롬프트”, “calc”, “subset”, “만세력 엔진”, “엔진 결과”, “제공된 데이터”, “허용된 근거”, “계산하지 않는다”, “이 섹션에서는” 같은 제작자 시점 표현을 쓰지 말고 결과만 자연스럽게 서술하세요.
 
 [고정 계산값]
 ${JSON.stringify(calc)}
@@ -79,6 +80,8 @@ ${args.reportFocus ? `[상품별 편집 방향]\n${args.reportFocus}` : ""}
 - 섹션마다 허용된 근거 중 실제 필요한 1~4개만 사용하세요.
 - 실제 명식 근거 없는 일반론 금지.
 - calc 내부 필드명이나 개발 용어를 고객에게 노출하지 마세요.
+- 고객 본문에는 작성 과정이나 규칙을 설명하지 마세요. “지침”, “번역 규칙”, “자녀판”, “프롬프트”, “calc”, “subset”, “만세력 엔진”, “엔진 결과”, “제공된 데이터”, “허용된 근거”, “새로 계산하지 않는다”, “이 섹션에서는” 같은 제작자 시점 표현을 절대 쓰지 마세요.
+- 내부 규칙은 조용히 적용하고 결과만 자연스러운 부모용 문장으로 작성하세요. 십성의 아동용 해석도 ‘번역한다’고 설명하지 말고 곧바로 아이의 표현·학습·규칙·자존감·관계 모습으로 서술하세요.
 - 한자 명리용어는 처음 한 번만 쉬운 한국어 설명을 붙이세요.
 - 미래를 확정적으로 예언하지 말고 경향·기회·주의·행동기준으로 표현하세요.
 - 건강은 생활 참고 수준, 투자는 실제 재무 검토 우선임을 지키세요.
@@ -100,7 +103,7 @@ ${JSON.stringify(args.recent)}
 ${JSON.stringify(requested)}
 
 반드시 각 section_no를 정확히 한 번씩 반환하세요.
-content_html에는 <p>, <p class="lead">, <strong>, <h3>, <div class="subhead">, <div class="emph">, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ul class="check">, <li>, <blockquote>를 사용할 수 있습니다. layout_type이 table이면 실제 <table>을 본문에 반드시 넣고, checklist이면 실제 <ul class="check">를 넣으세요. strategy/timeline/comparison은 내용상 필요한 경우 표나 체크리스트를 사용하세요. prose에는 억지 표를 만들지 마세요.
+content_html에는 <p>, <p class="lead">, <strong>, <h3>, <div class="subtitle">, <div class="subhead">, <div class="emph">, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ul class="check">, <li>, <blockquote>를 사용할 수 있습니다. layout_type이 table이면 실제 <table>을 본문에 반드시 넣고, checklist이면 실제 <ul class="check">를 넣으세요. strategy/timeline/comparison은 내용상 필요한 경우 표나 체크리스트를 사용하세요. prose에는 억지 표를 만들지 마세요.
 본문 분량은 각 섹션 target_chars의 최소값 이상을 우선 맞추되 같은 말 반복으로 채우지 마세요.
 
 각 섹션은 아래 필드를 모두 반환합니다.
@@ -162,8 +165,9 @@ ${JSON.stringify(args.recent)}
 - 첫 문장, 생활 장면, 근거 조합, 문단 순서를 이전 초안과 다르게 만드세요.
 - target_chars 최소 분량 이상.
 - 동일한 조언과 상투문구 금지.
+- 고객 본문에는 지침·번역 규칙·자녀판·프롬프트·calc·subset·만세력 엔진·엔진 결과·제공된 데이터·허용된 근거·계산 불가·작성 과정 같은 내부 설명을 절대 쓰지 마세요. 내부 규칙은 결과 문장으로만 반영하세요.
 - 실제 명식 근거 최소 1개 이상.
-- content_html에는 <p>, <p class="lead">, <strong>, <h3>, <div class="subhead">, <div class="emph">, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ul class="check">, <li>, <blockquote>를 사용할 수 있습니다. layout_type이 table이면 실제 표를 반드시 포함하세요. checklist이면 실제 체크리스트를 반드시 포함하세요. prose에는 억지 표를 넣지 마세요.
+- content_html에는 <p>, <p class="lead">, <strong>, <h3>, <div class="subtitle">, <div class="subhead">, <div class="emph">, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ul class="check">, <li>, <blockquote>를 사용할 수 있습니다. layout_type이 table이면 실제 표를 반드시 포함하세요. checklist이면 실제 체크리스트를 반드시 포함하세요. prose에는 억지 표를 넣지 마세요.
 - JSON 필드는 section_no, opening_sentence, content_html, key_basis, life_scenes, risk, action_point, emphasis, layout_type, checklist, table_rows를 모두 반환.
 `.trim();
 }

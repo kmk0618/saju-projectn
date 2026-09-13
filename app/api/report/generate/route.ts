@@ -8,7 +8,12 @@ import {
   buildRewritePrompt,
   buildSectionPrompt,
 } from "@/lib/report-prompts";
-import { validateGeneratedSection, type QualityCandidate } from "@/lib/report-quality";
+import { validateGeneratedSection, validateCustomerFacingChildSection, auditCustomerFacingChildReport, type QualityCandidate } from "@/lib/report-quality";
+import { buildChildMeaningContext } from "@/lib/child/child-meaning-map";
+import { CHILD_NARRATIVE_SCHEMA, buildChildNarrativePrompt } from "@/lib/child/child-narrative";
+import { CHILD_SECTION_PLAN_SCHEMA, buildChildSectionPlanPrompt } from "@/lib/child/child-section-planner";
+import { CHILD_SECTION_ITEM_SCHEMA, buildChildSectionGenerationPrompt } from "@/lib/child/child-section-generator";
+import { validateChildSectionDepth, auditChildReportDepth } from "@/lib/child/child-quality";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -208,6 +213,56 @@ const sectionItemSchema = {
   },
   required: ["section_no","opening_sentence","content_html","key_basis","life_scenes","risk","action_point","emphasis","layout_type","checklist","table_rows"],
 };
+
+async function generateChildNarrative(calcCtx: any, meaningContext: any, question: string) {
+  return openAIJson({
+    system: "당신은 부모가 읽는 유료 자녀사주 심층 리포트의 서사 설계자입니다. 계산하지 말고 제공된 사실을 아이의 생활·감정·학습·관계 언어로 연결합니다.",
+    user: buildChildNarrativePrompt({ calcContext: calcCtx, meaningContext, question }),
+    schema: CHILD_NARRATIVE_SCHEMA,
+    schemaName: "child_narrative_v2",
+    maxTokens: 6500,
+  });
+}
+
+async function planChildSection(args: {
+  spec: ReportSectionSpec;
+  calcSubset: any;
+  meaningContext: any;
+  narrative: any;
+  question: string;
+  recentPlans: any[];
+}) {
+  return openAIJson({
+    system: "당신은 자녀사주 해석 설계자입니다. 원시 사주값을 생활 장면과 부모 행동으로 변환하는 설계도만 만듭니다.",
+    user: buildChildSectionPlanPrompt(args),
+    schema: CHILD_SECTION_PLAN_SCHEMA,
+    schemaName: `child_section_${args.spec.section_no}_plan`,
+    maxTokens: 5000,
+  });
+}
+
+async function generateChildSection(args: {
+  spec: ReportSectionSpec;
+  plan: any;
+  calcSubset: any;
+  narrative: any;
+  question: string;
+  recent: any[];
+  previousCandidate?: any;
+  issues?: string[];
+}) {
+  let prompt = buildChildSectionGenerationPrompt(args);
+  if (args.previousCandidate) {
+    prompt += `\n\n[이전 초안 — 아래 문제를 해결해 전면 재작성]\n실패 이유: ${(args.issues || []).join(", ")}\n${JSON.stringify(args.previousCandidate)}`;
+  }
+  return openAIJson({
+    system: "당신은 부모가 읽는 유료 자녀사주 심층 리포트의 전문 해설가입니다. 내부 제작과정은 숨기고, 실제 생활 장면과 부모 행동까지 깊게 연결합니다.",
+    user: prompt,
+    schema: CHILD_SECTION_ITEM_SCHEMA,
+    schemaName: `child_section_${args.spec.section_no}_content`,
+    maxTokens: 12000,
+  });
+}
 
 async function generateNarrative(calcCtx: any, question: string, category: string, config: ReportCategoryConfig) {
   const schema = {
@@ -412,11 +467,20 @@ async function resetLegacyReportIfNeeded(sb: any, report: any, config: ReportCat
   }
   await sb.from("report_sections").delete().eq("report_id", report.id);
   const resetJson = {
+    ...oldJson,
+    report_category: config.key,
+    report_slug: config.slug,
+    report_subtitle: config.subtitle,
     total_sections: config.outline.length,
     completed_sections: 0,
     progress: 12,
     phase: "calculation_done",
     pdf_ready: false,
+    pdf_storage_path: null,
+    pdf_size: null,
+    pdf_generated_at: null,
+    pdf_renderer_version: null,
+    narrative: null,
     migrated_from: report.prompt_version || "legacy",
   };
   const { data: updated, error } = await sb.from("reports").update({
@@ -480,9 +544,14 @@ async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectio
     section_title: spec.section_title,
     content_html: content.content_html,
     content_json: {
+      subtitle: content.subtitle || "",
       opening_sentence: content.opening_sentence || "",
       key_basis: Array.isArray(content.key_basis) ? content.key_basis : [],
       life_scenes: Array.isArray(content.life_scenes) ? content.life_scenes : [],
+      parent_misreads: Array.isArray(content.parent_misreads) ? content.parent_misreads : [],
+      parent_actions: Array.isArray(content.parent_actions) ? content.parent_actions : [],
+      scripts: Array.isArray(content.scripts) ? content.scripts : [],
+      reframe: content.reframe || "",
       risk: content.risk || "",
       action_point: content.action_point || "",
       emphasis: content.emphasis || "",
@@ -564,6 +633,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     }
 
     const calcCtx = calcContext(init.calcRow.calculation_json, input);
+    const childMeaningContext = config.key === "child" ? buildChildMeaningContext(calcCtx) : null;
     let narrative = currentJson.narrative;
     if (!narrative) {
       await sb.from("reports").update({
@@ -578,7 +648,21 @@ async function runGenerationSlice(token: string, requestUrl: string) {
           background_heartbeat_at: Date.now(),
         },
       }).eq("id", report.id);
-      narrative = await generateNarrative(calcCtx, input.question, input.category, config);
+      let narrativeAttempt = 0;
+      while (true) {
+        narrative = config.key === "child"
+          ? await generateChildNarrative(calcCtx, childMeaningContext, input.question)
+          : await generateNarrative(calcCtx, input.question, input.category, config);
+        if (config.key !== "child") break;
+        const narrativeAudit = auditCustomerFacingChildReport([], narrative);
+        const depthAudit = auditChildReportDepth([], config.outline, narrative);
+        if (narrativeAudit.ok && depthAudit.ok) break;
+        narrativeAttempt += 1;
+        if (narrativeAttempt >= 4) {
+          const detail = [...narrativeAudit.failures, ...depthAudit.failures].map((x) => x.issues.join("+")).join("|");
+          throw new Error(`NARRATIVE_CUSTOMER_AUDIT_FAILED:${detail}`);
+        }
+      }
       const { data: latestAfterNarrative } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
       currentJson = {
         ...(latestAfterNarrative?.report_json || currentJson),
@@ -634,6 +718,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     // 동시에 12개 슬롯을 유지한다. 하나가 끝나는 즉시 같은 worker가 다음 SECTION을 잡는다.
     // 가장 느린 SECTION 때문에 나머지 슬롯이 쉬는 기존 wave barrier를 제거한다.
     let cursor = 0;
+    const recentChildPlans: any[] = [];
     let progressSerial: Promise<any> = Promise.resolve();
 
     const queueProgress = (extra: any = {}) => {
@@ -649,48 +734,116 @@ async function runGenerationSlice(token: string, requestUrl: string) {
         chapter2_material: narrative,
       });
 
-      const generated = await generateSectionBatch({
-        specs: [spec],
-        calcSubset: subset,
-        narrative,
-        question: input.question,
-        category: input.category,
-        recent: recentSummary,
-        reportTitle: config.title,
-        reportFocus: config.focus,
-      });
-      let candidate = (generated || []).find((g: any) => Number(g.section_no) === spec.section_no) || generated?.[0];
-      if (!candidate?.content_html) throw new Error(`MISSING_SECTION_${spec.section_no}`);
-
-      const minimum = spec.target_chars[0];
-      let validation = validateGeneratedSection({ candidate, minChars: minimum, previous: previousCandidates });
-      let rewriteCount = 0;
-
-      if (!validation.ok) {
-        const rewritten = await rewriteSection({
+      let candidate: any;
+      let childPlan: any = null;
+      if (config.key === "child") {
+        childPlan = await planChildSection({
           spec,
+          calcSubset: subset,
+          meaningContext: childMeaningContext,
+          narrative,
+          question: input.question,
+          recentPlans: recentChildPlans,
+        });
+        recentChildPlans.push({
+          section_no: spec.section_no,
+          main_thesis: childPlan?.main_thesis || "",
+          daily_scenes: (childPlan?.evidence_blocks || []).map((x:any) => x?.daily_scene).filter(Boolean),
+          parent_actions: (childPlan?.evidence_blocks || []).map((x:any) => x?.parent_action).filter(Boolean),
+        });
+        if (recentChildPlans.length > 10) recentChildPlans.shift();
+        candidate = await generateChildSection({
+          spec,
+          plan: childPlan,
           calcSubset: subset,
           narrative,
           question: input.question,
-          candidate,
-          issues: validation.issues,
+          recent: recentSummary,
+        });
+      } else {
+        const generated = await generateSectionBatch({
+          specs: [spec],
+          calcSubset: subset,
+          narrative,
+          question: input.question,
+          category: input.category,
           recent: recentSummary,
           reportTitle: config.title,
           reportFocus: config.focus,
         });
-        if (rewritten?.content_html) {
+        candidate = (generated || []).find((g: any) => Number(g.section_no) === spec.section_no) || generated?.[0];
+      }
+      if (!candidate?.content_html) throw new Error(`MISSING_SECTION_${spec.section_no}`);
+
+      const minimum = spec.target_chars[0];
+      let validation = validateGeneratedSection({ candidate, minChars: minimum, previous: previousCandidates });
+      let customerValidation = config.key === "child"
+        ? validateCustomerFacingChildSection(candidate)
+        : { ok: true, issues: [] as string[] };
+      let depthValidation = config.key === "child"
+        ? validateChildSectionDepth({ spec, candidate, plan: childPlan })
+        : { ok: true, issues: [] as string[] };
+      let rewriteCount = 0;
+
+      const MAX_REWRITES = config.key === "child" ? 4 : 1;
+      while ((!validation.ok || !customerValidation.ok || !depthValidation.ok) && rewriteCount < MAX_REWRITES) {
+        const allIssues = [...validation.issues, ...customerValidation.issues, ...depthValidation.issues];
+        if (config.key === "child") {
+          // If the plan itself caused shallow output, rebuild it once before the final rewrite attempts.
+          if (rewriteCount === 2) {
+            childPlan = await planChildSection({
+              spec,
+              calcSubset: subset,
+              meaningContext: childMeaningContext,
+              narrative,
+              question: input.question,
+              recentPlans: recentChildPlans,
+            });
+          }
+          candidate = await generateChildSection({
+            spec,
+            plan: childPlan,
+            calcSubset: subset,
+            narrative,
+            question: input.question,
+            recent: recentSummary,
+            previousCandidate: candidate,
+            issues: allIssues,
+          });
+        } else {
+          const rewritten = await rewriteSection({
+            spec,
+            calcSubset: subset,
+            narrative,
+            question: input.question,
+            candidate,
+            issues: allIssues,
+            recent: recentSummary,
+            reportTitle: config.title,
+            reportFocus: config.focus,
+          });
+          if (!rewritten?.content_html) break;
           candidate = rewritten;
-          rewriteCount = 1;
-          validation = validateGeneratedSection({ candidate, minChars: minimum, previous: previousCandidates });
         }
+        rewriteCount += 1;
+        validation = validateGeneratedSection({ candidate, minChars: minimum, previous: previousCandidates });
+        customerValidation = config.key === "child"
+          ? validateCustomerFacingChildSection(candidate)
+          : { ok: true, issues: [] as string[] };
+        depthValidation = config.key === "child"
+          ? validateChildSectionDepth({ spec, candidate, plan: childPlan })
+          : { ok: true, issues: [] as string[] };
       }
 
-      const fatalIssues = validation.issues.filter((issue) => issue.startsWith("TOO_SHORT_") || issue === "NO_FACT_BASIS");
-      if (fatalIssues.length) throw new Error(`QUALITY_${spec.section_no}:${fatalIssues.join(",")}`);
+      const fatalIssues = [
+        ...validation.issues.filter((issue) => issue.startsWith("TOO_SHORT_") || issue === "NO_FACT_BASIS"),
+        ...customerValidation.issues,
+        ...depthValidation.issues,
+      ];
+      if (fatalIssues.length) throw new Error(`QUALITY_${spec.section_no}:${[...new Set(fatalIssues)].join(",")}`);
 
-      await saveAcceptedSection(sb, report.id, spec, candidate, rewriteCount, validation.issues, config.version);
+      await saveAcceptedSection(sb, report.id, spec, candidate, rewriteCount, [...validation.issues, ...depthValidation.issues], config.version);
       acceptedCount += 1;
-      // 다음 SECTION들의 중복 검사에도 방금 완성된 결과를 바로 반영한다.
       previousCandidates.push({
         opening_sentence: candidate.opening_sentence || "",
         content_html: candidate.content_html || "",
@@ -708,7 +861,6 @@ async function runGenerationSlice(token: string, requestUrl: string) {
 
       await queueProgress({ background_last_error: null, last_completed_section: spec.section_no });
     };
-
     const worker = async (workerNo: number) => {
       while (true) {
         // Vercel 300초 제한에 걸리지 않도록 늦은 시점에는 새 SECTION을 시작하지 않는다.

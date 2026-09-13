@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check:child": "node scripts/verify-child-midlayer.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "^152.0.0",
