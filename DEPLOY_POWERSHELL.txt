@@ -5,5 +5,5 @@ npx tsc --noEmit
 npm run build
 
 git add .
-git commit -m "자녀사주 중간해석층 v4 적용"
+git commit -m "기본 페이지 부모자녀 궁합 상품 제거"
 git push

@@ -1,16 +1,17 @@
-자녀사주 중간 해석층 v4 검증 결과
+BASIC PAGE PRODUCT UPDATE VERIFY OK
+- parent-child product card removed: OK
+- parent-child checkout mapping removed from public saju page: OK
+- product flow text updated to 종합·자녀·커플·신년: OK
+- static review product selector removed: OK
+- backend parent-child category retained for historical compatibility: OK
 
-[통과]
-- npm run check:child : PASS
-- npx tsc --noEmit : PASS
-- 자녀사주 50 SECTION 연속 번호 : PASS (1~50)
-- meaning -> narrative -> planner -> generator -> quality 연결 : PASS
-- SECTION 20 원시 검산표 회귀 테스트 : BLOCKED
-- 내부/지침 설명 문구 회귀 테스트 : BLOCKED
-- 정상 해석형 SECTION 회귀 테스트 : PASSED
-- PDF 생성 직전 전체 자녀 리포트 최종 감사 : PASS
-- 고객 표지의 REPORT ENGINE 내부 라벨 제거 : PASS
+CHILD MIDLAYER VERIFY OK
+- 50 sections: OK
+- meaning -> narrative -> planner -> generator -> quality: OK
+- section 20 raw audit table regression test: BLOCKED
+- internal/meta language regression test: BLOCKED
+- valid interpreted section regression test: PASSED
+- PDF final audit: OK
+- customer cover internal engine label removed: OK
 
-[이 환경에서 미완료]
-- Next.js production build는 코드 오류가 아니라 Linux용 SWC 패키지를 registry.npmjs.org에서 받으려는 단계에서 네트워크가 차단되어 완료하지 못함.
-- 로컬 Windows에서는 npm run build로 최종 확인 필요.
+TypeScript npx tsc --noEmit: PASS
