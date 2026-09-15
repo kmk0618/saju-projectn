@@ -2,7 +2,7 @@ import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 import { REPORT_VERSION } from "@/lib/report-spec";
 
-export const PDF_RENDERER_VERSION = "aqua50-editorial-v6-child-midlayer";
+export const PDF_RENDERER_VERSION = "aqua50-editorial-v7-couple-midlayer";
 
 type SectionRow = {
   section_no: number;
@@ -71,6 +71,11 @@ const CATEGORY_CHAPTER_SUBTITLES: Record<string, Record<number,string>> = {
     2: "감정·학습·자존감·관계·표현과 규칙 반응을 아이를 규정하지 않는 언어로 읽습니다.",
     3: "아이를 바꾸는 대신 부모가 오늘 바꿀 수 있는 말과 환경, 학습과 성장 루틴으로 연결합니다.",
   },
+  couple: {
+    1: "두 사람을 각각 이해한 뒤, 서로에게 끌리는 지점과 가까이서 부딪히는 지점을 관계의 뼈대로 읽습니다.",
+    2: "소통·감정·돈·가정·일·친밀감에서 반복되는 상호작용을 실제 부부 생활 장면으로 풀어냅니다.",
+    3: "갈등을 이기는 법이 아니라 함께 회복하는 법, 역할 분담, 시기와 대화 습관을 구체적인 실행 전략으로 연결합니다.",
+  },
 };
 
 function reportChapters(sections: SectionRow[], reportCategory = "life"): ChapterMeta[] {
@@ -98,7 +103,7 @@ function chapterBlocks(sections: SectionRow[], narrative: any, chapters: Chapter
       <section class="chapterMessage">
         <div class="eyebrow">CHAPTER ${chapter.part_no} 핵심 메시지</div>
         <h2>${esc(thesis)}</h2>
-        <p>${esc(reportCategory === "child" ? "겉으로 보이는 행동만 보지 않고, 아이가 어떤 자극에서 힘을 쓰고 어디에서 회복이 필요한지 살펴봅니다. 부모가 바로 적용할 수 있는 말과 환경까지 함께 정리합니다." : "앞에서 확인한 계산값을 필요한 곳에서만 사용해, 같은 사주 용어를 반복하지 않고 실제 생활과 선택의 언어로 이어갑니다.")}</p>
+        <p>${esc(reportCategory === "child" ? "겉으로 보이는 행동만 보지 않고, 아이가 어떤 자극에서 힘을 쓰고 어디에서 회복이 필요한지 살펴봅니다. 부모가 바로 적용할 수 있는 말과 환경까지 함께 정리합니다." : reportCategory === "couple" ? "누가 맞고 틀린지를 가리기보다, 같은 차이가 언제 매력이 되고 언제 갈등이 되는지 실제 생활 장면과 대화 방식으로 이어서 살펴봅니다." : "사주 구조를 필요한 곳에서만 사용해, 같은 용어를 반복하지 않고 실제 생활과 선택의 언어로 이어갑니다.")}</p>
       </section>
       <section class="chapterBody">
         ${rows.map((s) => `
@@ -139,16 +144,19 @@ export function buildReportHtml(args: {
 }) {
   const { title, subtitle, question, generatedAt, sections, input, narrative, reportCategory = "life" } = args;
   const chapters = reportChapters(sections, reportCategory);
-  const birthLine = input ? [
-    input.year && input.month && input.day ? `${input.year}.${String(input.month).padStart(2,"0")}.${String(input.day).padStart(2,"0")} ${input.calendar_type === "solar" ? "양력" : "음력"}` : "",
-    input.gender === "남" || input.gender === "male" ? "남성" : input.gender === "여" || input.gender === "female" ? "여성" : "",
-    input.region_name || "",
-    input.time_unknown ? "출생시간 미상" : input.hour != null ? `${String(input.hour).padStart(2,"0")}:${String(input.minute || 0).padStart(2,"0")}` : "",
+  const formatBirthLine = (v:any) => v ? [
+    (v.year || v.y) && (v.month || v.m) && (v.day || v.d) ? `${v.year || v.y}.${String(v.month || v.m).padStart(2,"0")}.${String(v.day || v.d).padStart(2,"0")} ${(v.calendar_type || v.calendar) === "solar" ? "양력" : "음력"}` : "",
+    v.gender === "남" || v.gender === "male" ? "남성" : v.gender === "여" || v.gender === "female" ? "여성" : "",
+    v.region_name || "",
+    v.time_unknown || v.unknown_time ? "출생시간 미상" : (v.hour ?? v.h) != null && String(v.hour ?? v.h) !== "" ? `${String(v.hour ?? v.h).padStart(2,"0")}:${String(v.minute ?? v.mi ?? 0).padStart(2,"0")}` : "",
   ].filter(Boolean).join(" · ") : "";
+  const birthLine = formatBirthLine(input);
+  const partnerBirthLine = formatBirthLine(input?.partner_input);
 
   const isChild = reportCategory === "child";
-  const prologueTitle = narrative?.core_thesis || (isChild ? "아이를 이해하는 언어부터 바꿉니다" : "타고난 구조를 이해하면, 지금의 선택이 훨씬 선명해집니다");
-  const prologueBody = narrative?.current_question_thesis || (isChild ? "이 리포트는 아이를 한 문장으로 규정하지 않습니다. 아이가 어떤 자극을 세밀하게 느끼고, 어떤 조건에서 회복하며, 표현과 학습이 어떻게 살아나는지를 살펴보고 부모가 오늘 할 수 있는 행동으로 연결합니다." : "이 리포트는 사주 원국을 먼저 구조적으로 읽고, 그 구조가 일·돈·관계·현재 흐름에서 어떻게 나타나는지 연결한 뒤 마지막에 지금의 질문에 직접 답합니다.");
+  const isCouple = reportCategory === "couple";
+  const prologueTitle = narrative?.core_thesis || (isChild ? "아이를 이해하는 언어부터 바꿉니다" : isCouple ? "두 사람이 다른 이유를 알면, 싸움의 의미도 달라집니다" : "타고난 구조를 이해하면, 지금의 선택이 훨씬 선명해집니다");
+  const prologueBody = narrative?.current_question_thesis || (isChild ? "이 리포트는 아이를 한 문장으로 규정하지 않습니다. 아이가 어떤 자극을 세밀하게 느끼고, 어떤 조건에서 회복하며, 표현과 학습이 어떻게 살아나는지를 살펴보고 부모가 오늘 할 수 있는 행동으로 연결합니다." : isCouple ? "이 리포트는 두 사람 중 누가 더 맞는 사람인지 판정하지 않습니다. 서로에게 왜 끌리는지, 같은 차이가 언제 갈등이 되는지, 그 갈등이 어떤 순서로 커지고 어떤 말과 행동으로 다시 회복되는지를 두 사람의 실제 구조와 생활 장면을 연결해 살펴봅니다." : "이 리포트는 사주 원국을 먼저 구조적으로 읽고, 그 구조가 일·돈·관계·현재 흐름에서 어떻게 나타나는지 연결한 뒤 마지막에 지금의 질문에 직접 답합니다.");
 
   return `<!doctype html>
 <html lang="ko">
@@ -176,14 +184,14 @@ body{font-family:"Noto Serif CJK KR","Noto Serif KR","Batang",serif;color:#17171
   <div class="brand">나의사주 · PERSONAL REPORT</div>
   <h1>${esc(title)}</h1>
   <div class="sub">${esc(subtitle || "원국 구조부터 현재 흐름과 실행 전략까지 연결한 개인맞춤 종합 인생 리포트")}</div>
-  <div class="coverInfo"><b>REPORT FOR</b><br>${birthLine ? esc(birthLine) : "개인 맞춤 분석"}${question ? `<br><br><b>CURRENT QUESTION</b><br>${esc(question)}` : ""}</div>
+  <div class="coverInfo"><b>REPORT FOR</b><br>${isCouple ? `${birthLine ? `A · ${esc(birthLine)}` : "A · 첫 번째 사람"}${partnerBirthLine ? `<br>B · ${esc(partnerBirthLine)}` : "<br>B · 두 번째 사람"}` : (birthLine ? esc(birthLine) : "개인 맞춤 분석")}${question ? `<br><br><b>CURRENT QUESTION</b><br>${esc(question)}` : ""}</div>
   <div class="coverMeta">${generatedAt ? `생성일 ${esc(generatedAt)} · ` : ""}나의사주 PERSONAL REPORT</div>
 </section>
-<section class="prologue"><div class="eyebrow">PROLOGUE</div><div class="pageTitle">프롤로그</div><h1>${esc(prologueTitle)}</h1><p>${esc(prologueBody)}</p><p>${esc(isChild ? "아이를 한 문장으로 규정하지 않고, 실제 생활에서 부모가 관찰하고 바꿀 수 있는 말·환경·루틴으로 이어서 봅니다." : "좋은 시기를 기다리는 데서 끝나지 않고, 그 흐름이 실제 선택과 결과로 남도록 무엇을 준비해야 하는지까지 이어서 봅니다.")}</p></section>
-<section class="questionPage"><div class="eyebrow">${isChild ? "PARENT QUESTION" : "CURRENT LIFE QUESTION"}</div><h1>${isChild ? "부모의 질문" : "현재 고민 요약"}</h1><div class="questionCard">${esc(question || (isChild ? "우리 아이를 어떻게 이해하고 키워야 할까요?" : "지금의 인생 흐름과 앞으로의 방향이 궁금합니다."))}</div><p>${esc(narrative?.current_question_thesis || (isChild ? "이 질문은 마지막 챕터에서 아이의 기질·회복·표현·학습 구조를 부모의 실제 행동과 연결해 직접 답합니다." : "이 질문은 마지막 챕터에서 현재 대운과 세운, 실제 실행 기준을 연결해 다시 직접 답합니다."))}</p></section>
-<section class="toc"><div class="eyebrow">CONTENTS</div><h1>목차</h1><div class="tocDesc">${isChild ? "3개 CHAPTER · 50개 SECTION으로 아이의 사주 구조부터 실제 양육 전략까지 이어집니다." : "3개 CHAPTER · 50개 SECTION으로 원국의 구조부터 현재 질문의 답까지 순서대로 이어집니다."}</div>${buildToc(sections, chapters)}</section>
+<section class="prologue"><div class="eyebrow">PROLOGUE</div><div class="pageTitle">프롤로그</div><h1>${esc(prologueTitle)}</h1><p>${esc(prologueBody)}</p><p>${esc(isChild ? "아이를 한 문장으로 규정하지 않고, 실제 생활에서 부모가 관찰하고 바꿀 수 있는 말·환경·루틴으로 이어서 봅니다." : isCouple ? "관계의 차이를 결함으로 고치는 대신, 서로 다른 방식이 한 팀의 역할이 되도록 실제 대화와 생활 규칙까지 이어서 봅니다." : "좋은 시기를 기다리는 데서 끝나지 않고, 그 흐름이 실제 선택과 결과로 남도록 무엇을 준비해야 하는지까지 이어서 봅니다.")}</p></section>
+<section class="questionPage"><div class="eyebrow">${isChild ? "PARENT QUESTION" : isCouple ? "COUPLE QUESTION" : "CURRENT LIFE QUESTION"}</div><h1>${isChild ? "부모의 질문" : isCouple ? "두 사람의 질문" : "현재 고민 요약"}</h1><div class="questionCard">${esc(question || (isChild ? "우리 아이를 어떻게 이해하고 키워야 할까요?" : isCouple ? "우리는 왜 끌리고 왜 부딪히며, 어떻게 하면 오래 잘 지낼 수 있을까요?" : "지금의 인생 흐름과 앞으로의 방향이 궁금합니다."))}</div><p>${esc(narrative?.current_question_thesis || (isChild ? "이 질문은 마지막 챕터에서 아이의 기질·회복·표현·학습 구조를 부모의 실제 행동과 연결해 직접 답합니다." : isCouple ? "이 질문은 마지막 챕터에서 두 사람의 반복 갈등, 사랑의 번역 방식, 현재 흐름과 실제 관계 규칙을 연결해 직접 답합니다." : "이 질문은 마지막 챕터에서 현재 대운과 세운, 실제 실행 기준을 연결해 다시 직접 답합니다."))}</p></section>
+<section class="toc"><div class="eyebrow">CONTENTS</div><h1>목차</h1><div class="tocDesc">${isChild ? "3개 CHAPTER · 50개 SECTION으로 아이의 사주 구조부터 실제 양육 전략까지 이어집니다." : isCouple ? "3개 CHAPTER · 50개 SECTION으로 두 사람의 구조, 반복되는 관계 패턴, 실제 대화와 장기 관계 전략까지 이어집니다." : "3개 CHAPTER · 50개 SECTION으로 원국의 구조부터 현재 질문의 답까지 순서대로 이어집니다."}</div>${buildToc(sections, chapters)}</section>
 ${chapterBlocks(sections, narrative, chapters, reportCategory)}
-<div class="footerNote">${esc(isChild ? "본 리포트는 전통 명리학적 해석을 바탕으로 한 부모용 참고 자료입니다. 아이를 규정하거나 진단하기 위한 자료가 아니며, 실제 발달·교육·건강과 관련된 중요한 판단은 아이의 현재 상태와 관련 전문가의 검토를 함께 고려하시기 바랍니다." : "본 리포트는 전통 명리학적 해석을 바탕으로 한 자기이해 참고 자료입니다. 건강·투자·법률·세무 등 중요한 결정은 실제 상황과 관련 전문가의 검토를 함께 고려하시기 바랍니다.")}</div>
+<div class="footerNote">${esc(isChild ? "본 리포트는 전통 명리학적 해석을 바탕으로 한 부모용 참고 자료입니다. 아이를 규정하거나 진단하기 위한 자료가 아니며, 실제 발달·교육·건강과 관련된 중요한 판단은 아이의 현재 상태와 관련 전문가의 검토를 함께 고려하시기 바랍니다." : isCouple ? "본 리포트는 전통 명리학적 해석을 바탕으로 두 사람의 관계를 이해하기 위한 참고 자료입니다. 관계의 중요한 결정은 실제 대화와 생활 조건을 함께 고려하시고, 갈등이나 어려움이 깊다면 관계·심리 전문 상담의 도움을 함께 검토하시기 바랍니다." : "본 리포트는 전통 명리학적 해석을 바탕으로 한 자기이해 참고 자료입니다. 건강·투자·법률·세무 등 중요한 결정은 실제 상황과 관련 전문가의 검토를 함께 고려하시기 바랍니다.")}</div>
 </body>
 </html>`;
 }

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { buildReportHtml, htmlToPdfBuffer, PDF_RENDERER_VERSION } from "@/lib/report-pdf";
 import { auditCustomerFacingChildReport } from "@/lib/report-quality";
 import { auditChildReportDepth } from "@/lib/child/child-quality";
+import { auditCoupleReportDepth } from "@/lib/couple/couple-quality";
 import { REPORT_CATEGORY_CONFIGS } from "@/lib/report-categories";
 
 export const runtime = "nodejs";
@@ -61,13 +62,24 @@ async function ensurePdf(sb: any, order: any, report: any) {
     }
   }
 
+  if (String(rj.report_category || "life") === "couple") {
+    const depthAudit = auditCoupleReportDepth(sections as any[], REPORT_CATEGORY_CONFIGS.couple.outline, rj.narrative || null);
+    if (!depthAudit.ok) {
+      const detail = depthAudit.failures.map((x) => `S${x.section_no}:${x.issues.join("+")}`).join("|").slice(0, 2400);
+      throw new Error(`PDF_COUPLE_CONTENT_AUDIT_FAILED:${detail}`);
+    }
+  }
+
   await sb.from("reports").update({
     status:"generating",
     report_json:{ ...rj, total_sections:totalSections, completed_sections:totalSections, progress:97, phase:"pdf_generating", pdf_ready:false },
     error_message:null,
   }).eq("id", report.id);
 
-  const input = order.payment_payload?.guest_input || {};
+  const input = {
+    ...(order.payment_payload?.guest_input || {}),
+    partner_input: rj.partner_input_snapshot || order.payment_payload?.partner_input || null,
+  };
   const html = buildReportHtml({
     title: report.title || "종합 인생 리포트",
     subtitle: rj.report_subtitle || "개인맞춤 사주 리포트",

@@ -56,6 +56,8 @@ export async function POST(req: Request) {
 
     const merchantUid = `saju-${crypto.randomUUID()}`;
     const input = body.input && typeof body.input === "object" ? body.input : {};
+    const partnerProfileId = user ? (body.partner_profile_id || null) : null;
+    const partnerInput = body.partner_input && typeof body.partner_input === "object" ? body.partner_input : null;
 
     const { data: order, error: orderError } = await sb
       .from("orders")
@@ -76,6 +78,8 @@ export async function POST(req: Request) {
           merchant_uid: merchantUid,
           listed_amount_krw: amount,
           guest_input: input,
+          partner_profile_id: partnerProfileId,
+          partner_input: partnerInput,
           prepared_at: new Date().toISOString(),
           member_email: user?.email || null,
         },

@@ -393,6 +393,22 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
     © 2026 라이즈업메이커스. All rights reserved.
   </div>
 </footer><nav class="mobileNav"><a href="#free"><span>✦</span>무료사주</a><a href="#reports"><span>▦</span>리포트</a><a href="#relation"><span>∞</span>궁합</a><a href="#my"><span>●</span>MY</a></nav><div class="modalBack" id="modalBack" onclick="if(event.target===this)closeModal()"><div class="modal"><h3 id="modalTitle"></h3><p id="modalText"></p>
+<div id="couplePartnerBox" style="display:none;margin:14px 0;padding:14px;border:1px solid #e8dfc9;border-radius:14px;background:#fffdf8">
+  <div style="font-size:12px;font-weight:950;color:#403b31;margin-bottom:9px">상대방 출생정보</div>
+  <div id="coupleSavedWrap" style="display:none;margin-bottom:10px">
+    <label style="display:block;font-size:10.5px;font-weight:900;margin-bottom:5px;color:#655f53">저장된 가족 프로필에서 선택</label>
+    <select id="cp_saved" onchange="fillCouplePartnerFromProfile(this.value)" style="width:100%;border:1px solid #e5dcc1;border-radius:10px;padding:10px;background:#fff"></select>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><label style="display:block;font-size:10px;font-weight:900;margin-bottom:4px">양력/음력</label><select id="cp_calendar" style="width:100%;padding:10px;border:1px solid #e5dcc1;border-radius:10px"><option value="solar">양력</option><option value="lunar">음력</option><option value="lunarLeap">음력 윤달</option></select></div>
+    <div><label style="display:block;font-size:10px;font-weight:900;margin-bottom:4px">성별</label><select id="cp_gender" style="width:100%;padding:10px;border:1px solid #e5dcc1;border-radius:10px"><option value="남">남성</option><option value="여">여성</option></select></div>
+    <div style="grid-column:1/3"><label style="display:block;font-size:10px;font-weight:900;margin-bottom:4px">생년월일</label><input id="cp_birth_date" type="date" style="width:100%;padding:10px;border:1px solid #e5dcc1;border-radius:10px"></div>
+    <div><label style="display:block;font-size:10px;font-weight:900;margin-bottom:4px">출생시간</label><input id="cp_time" type="time" style="width:100%;padding:10px;border:1px solid #e5dcc1;border-radius:10px"></div>
+    <div style="display:flex;align-items:end;padding-bottom:8px"><label style="font-size:10.5px;font-weight:900"><input id="cp_unknown" type="checkbox" onchange="syncCoupleUnknownTime()"> 시간 모름</label></div>
+    <div style="grid-column:1/3"><label style="display:block;font-size:10px;font-weight:900;margin-bottom:4px">출생지역</label><select id="cp_region" style="width:100%;padding:10px;border:1px solid #e5dcc1;border-radius:10px"></select></div>
+  </div>
+  <div style="font-size:9.8px;line-height:1.55;color:#8a8273;margin-top:8px">궁합은 두 사람의 만세력을 각각 계산한 뒤 교차 분석합니다. 출생시간을 모르면 시간주 해석은 제외됩니다.</div>
+</div>
 <div id="guestCheckoutBox" style="display:none;margin:14px 0 4px">
   <div style="font-size:11px;font-weight:950;color:#4c4639;margin-bottom:9px">구매 방법을 선택하세요</div>
 
@@ -998,6 +1014,78 @@ function collectGuestCheckoutPayload(){
   };
 }
 
+
+function isCoupleProductName(name){return String(name||'').includes('부부')||String(name||'').includes('커플')}
+function syncCoupleUnknownTime(){
+  const unknown=!!document.getElementById('cp_unknown')?.checked;
+  const t=document.getElementById('cp_time'); if(t)t.disabled=unknown;
+}
+function fillCoupleRegionOptions(){
+  const src=document.getElementById('region'), dst=document.getElementById('cp_region');
+  if(!src||!dst)return;
+  const keep=dst.value;
+  dst.innerHTML=[...src.options].map(o=>`<option value="${escapeFamily(o.value)}" data-name="${escapeFamily(o.dataset.name||o.textContent||'')}">${escapeFamily(o.textContent||'')}</option>`).join('');
+  if(keep && [...dst.options].some(o=>o.value===keep))dst.value=keep;
+}
+function fillCouplePartnerFromProfile(id){
+  if(!id)return;
+  const p=familyProfiles.find(x=>x.id===id); if(!p)return;
+  document.getElementById('cp_calendar').value=p.calendar_type==='lunar'?(p.is_leap_month?'lunarLeap':'lunar'):'solar';
+  document.getElementById('cp_gender').value=p.gender==='female'?'여':'남';
+  document.getElementById('cp_birth_date').value=p.birth_date||'';
+  document.getElementById('cp_unknown').checked=!!p.time_unknown;
+  document.getElementById('cp_time').value=p.time_unknown?'':(p.birth_time?String(p.birth_time).slice(0,5):'');
+  syncCoupleUnknownTime();
+  fillCoupleRegionOptions();
+  const region=document.getElementById('cp_region');
+  if(region){
+    const opts=[...region.options];
+    let hit=opts.find(o=>o.dataset.name===String(p.birth_region||'')||o.textContent.trim()===String(p.birth_region||''));
+    if(!hit && p.longitude!=null)hit=opts.find(o=>Math.abs(Number(o.value)-Number(p.longitude))<0.03);
+    if(hit)region.value=hit.value;
+  }
+}
+async function syncCouplePartnerBox(){
+  const box=document.getElementById('couplePartnerBox'); if(!box)return;
+  const active=isCoupleProductName(checkoutProduct?.name); box.style.display=active?'block':'none';
+  if(!active)return;
+  fillCoupleRegionOptions();
+  const user=await getFamilyUser();
+  const wrap=document.getElementById('coupleSavedWrap'), sel=document.getElementById('cp_saved');
+  if(user && wrap && sel){
+    const primaryId=currentBirthProfileId||selectedMainProfileId||'';
+    const choices=familyProfiles.filter(p=>p.id!==primaryId);
+    wrap.style.display=choices.length?'block':'none';
+    sel.innerHTML='<option value="">직접 입력</option>'+choices.map(p=>`<option value="${escapeFamily(p.id)}">${escapeFamily(p.label||familyRelationshipText(p.relationship))}</option>`).join('');
+    const spouse=choices.find(p=>p.relationship==='spouse'); if(spouse){sel.value=spouse.id;fillCouplePartnerFromProfile(spouse.id);}
+  }else if(wrap){wrap.style.display='none';}
+  syncCoupleUnknownTime();
+}
+function collectCouplePartnerPayload(){
+  if(!isCoupleProductName(checkoutProduct?.name))return null;
+  const date=String(document.getElementById('cp_birth_date')?.value||'').split('-');
+  const time=String(document.getElementById('cp_time')?.value||'').split(':');
+  const unknown=!!document.getElementById('cp_unknown')?.checked;
+  const regionEl=document.getElementById('cp_region'); const opt=regionEl?.options?.[regionEl.selectedIndex];
+  return {
+    profile_id:document.getElementById('cp_saved')?.value||null,
+    input:{
+      y:date[0]||'',m:date[1]||'',d:date[2]||'',h:unknown?'':(time[0]||''),mi:unknown?'0':(time[1]||'0'),
+      calendar_type:document.getElementById('cp_calendar')?.value||'solar',
+      gender:document.getElementById('cp_gender')?.value||'',
+      region:regionEl?.value||'',region_name:opt?.dataset?.name||opt?.textContent?.trim()||'',unknown_time:unknown
+    }
+  };
+}
+function validateCouplePartnerPayload(v){
+  if(!v)return true;
+  const x=v.input||{};
+  if(!x.y||!x.m||!x.d){showToast('상대방 생년월일을 입력해 주세요.');return false;}
+  if(!x.gender){showToast('상대방 성별을 선택해 주세요.');return false;}
+  if(!x.unknown_time && !x.h){showToast('상대방 출생시간을 입력하거나 시간 모름을 선택해 주세요.');return false;}
+  return true;
+}
+
 async function openProduct(name,price){
   const user=await getFamilyUser();
   checkoutIsGuest=!user;
@@ -1011,6 +1099,7 @@ async function openProduct(name,price){
   const buyBtn=document.getElementById('modalBuyBtn');
   if(buyBtn) buyBtn.textContent=checkoutIsGuest?'비회원으로 구매하기':'구매하기';
   document.getElementById('modalBack').style.display='flex';
+  await syncCouplePartnerBox();
 }
 
 async function startCheckout(name,price){
@@ -1051,6 +1140,8 @@ async function confirmCheckout(){
   const user=await getFamilyUser();
   const isGuest=!user;
   const guestEmail=(document.getElementById('guestCheckoutEmail')?.value||'').trim();
+  const couplePartner=collectCouplePartnerPayload();
+  if(!validateCouplePartnerPayload(couplePartner)) return;
 
   if(isGuest && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)){
     showToast('리포트를 확인할 이메일을 정확히 입력해 주세요.');
@@ -1095,6 +1186,8 @@ async function confirmCheckout(){
         birth_profile_id:checkoutProduct.birth_profile_id||null,
         question_id:checkoutProduct.question_id||null,
         calculation_id:checkoutProduct.calculation_id||null,
+        partner_profile_id:couplePartner?.profile_id||null,
+        partner_input:couplePartner?.input||null,
         input:collectGuestCheckoutPayload()
       })
     });

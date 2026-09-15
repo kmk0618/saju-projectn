@@ -14,6 +14,12 @@ import { CHILD_NARRATIVE_SCHEMA, buildChildNarrativePrompt } from "@/lib/child/c
 import { CHILD_SECTION_PLAN_SCHEMA, buildChildSectionPlanPrompt } from "@/lib/child/child-section-planner";
 import { CHILD_SECTION_ITEM_SCHEMA, buildChildSectionGenerationPrompt } from "@/lib/child/child-section-generator";
 import { validateChildSectionDepth, auditChildReportDepth } from "@/lib/child/child-quality";
+import { buildCoupleFacts, combineCoupleContext } from "@/lib/couple/couple-facts";
+import { buildCoupleMeaningContext } from "@/lib/couple/couple-meaning-map";
+import { COUPLE_NARRATIVE_SCHEMA, buildCoupleNarrativePrompt } from "@/lib/couple/couple-narrative";
+import { COUPLE_SECTION_PLAN_SCHEMA, buildCoupleSectionPlanPrompt } from "@/lib/couple/couple-section-planner";
+import { COUPLE_SECTION_ITEM_SCHEMA, buildCoupleSectionGenerationPrompt } from "@/lib/couple/couple-section-generator";
+import { validateCoupleSectionDepth, auditCoupleReportDepth } from "@/lib/couple/couple-quality";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -264,6 +270,53 @@ async function generateChildSection(args: {
   });
 }
 
+
+async function generateCoupleNarrative(aCtx: any, bCtx: any, coupleFacts: any, meaningContext: any, question: string) {
+  return openAIJson({
+    system: "당신은 두 사람의 실제 만세력 계산값을 바탕으로 상호작용을 설계하는 유료 부부궁합 리포트 편집장입니다. 좋다/나쁘다 판정이 아니라 실제 관계 루프와 생활 전략을 만듭니다.",
+    user: buildCoupleNarrativePrompt({ a: aCtx, b: bCtx, couple: coupleFacts, meaning: meaningContext, question }),
+    schema: COUPLE_NARRATIVE_SCHEMA,
+    schemaName: "couple_narrative_v2",
+    maxTokens: 7500,
+  });
+}
+
+async function planCoupleSection(args: {
+  spec: ReportSectionSpec;
+  calcSubset: any;
+  narrative: any;
+  meaning: any;
+  question: string;
+  recentPlans: any[];
+}) {
+  return openAIJson({
+    system: "당신은 커플·부부 궁합 SECTION의 관계 해석 설계자입니다. A와 B의 상호작용을 생활 장면과 복구 행동까지 내려 설계합니다.",
+    user: buildCoupleSectionPlanPrompt(args),
+    schema: COUPLE_SECTION_PLAN_SCHEMA,
+    schemaName: `couple_section_${args.spec.section_no}_plan`,
+    maxTokens: 6000,
+  });
+}
+
+async function generateCoupleSection(args: {
+  spec: ReportSectionSpec;
+  plan: any;
+  calcSubset: any;
+  narrative: any;
+  question: string;
+  recent: any[];
+  previousCandidate?: any;
+  issues?: string[];
+}) {
+  return openAIJson({
+    system: "당신은 두 사람이 함께 읽는 유료 부부궁합 심층 리포트의 전문 해설가입니다. 한 사람 탓으로 몰지 않고 관계 상호작용, 실제 생활 장면, 복구 행동과 대화문까지 구체적으로 씁니다.",
+    user: buildCoupleSectionGenerationPrompt(args),
+    schema: COUPLE_SECTION_ITEM_SCHEMA,
+    schemaName: `couple_section_${args.spec.section_no}_content`,
+    maxTokens: 13000,
+  });
+}
+
 async function generateNarrative(calcCtx: any, question: string, category: string, config: ReportCategoryConfig) {
   const schema = {
     type: "object",
@@ -459,6 +512,96 @@ async function ensureInitialized(sb: any, order: any, input: any, config: Report
   return { birthProfileId, questionId, calcRow, report };
 }
 
+
+function inputFromBirthProfile(profile: any) {
+  const [year, month, day] = String(profile?.birth_date || "").split("-").map(Number);
+  const time = profile?.birth_time ? String(profile.birth_time).slice(0,5).split(":").map(Number) : [];
+  const gender = profile?.gender === "male" ? "남" : profile?.gender === "female" ? "여" : "";
+  return {
+    year, month, day,
+    hour: profile?.time_unknown ? null : (Number.isFinite(time[0]) ? time[0] : null),
+    minute: profile?.time_unknown ? 0 : (Number.isFinite(time[1]) ? time[1] : 0),
+    calendar_type: profile?.calendar_type === "lunar" ? (profile?.is_leap_month ? "lunarLeap" : "lunar") : "solar",
+    gender,
+    time_unknown: !!profile?.time_unknown,
+    longitude: toNumber(profile?.longitude, null),
+    region_name: profile?.birth_region || null,
+    question: "",
+    category: "",
+  };
+}
+
+async function ensurePartnerInitialized(sb: any, order: any, primaryProfileId: string, existingPartnerProfileId?: string | null) {
+  const payload: any = order.payment_payload || {};
+  let partnerProfileId = String(payload.partner_profile_id || existingPartnerProfileId || "").trim() || null;
+  let partnerInput: any = null;
+
+  if (partnerProfileId) {
+    let q = sb.from("birth_profiles").select("*").eq("id", partnerProfileId);
+    if (order.user_id) q = q.eq("user_id", order.user_id);
+    const { data: profile, error } = await q.maybeSingle();
+    if (error || !profile) throw new Error("PARTNER_PROFILE_NOT_FOUND");
+    if (String(profile.id) === String(primaryProfileId)) throw new Error("PARTNER_PROFILE_MUST_DIFFER");
+    partnerInput = inputFromBirthProfile(profile);
+    if (!partnerInput.year || !partnerInput.month || !partnerInput.day) throw new Error("PARTNER_BIRTH_DATE_MISSING");
+    if (!partnerInput.gender) throw new Error("PARTNER_GENDER_MISSING");
+  } else {
+    const rawPartner = payload.partner_input || payload.guest_input?.partner_input || payload.guest_input?.partner || null;
+    partnerInput = normalizeInput(rawPartner || {});
+    if (!partnerInput.year || !partnerInput.month || !partnerInput.day) throw new Error("PARTNER_BIRTH_DATE_MISSING");
+    if (!partnerInput.gender) throw new Error("PARTNER_GENDER_MISSING");
+    const birthDate = `${String(partnerInput.year).padStart(4,"0")}-${String(partnerInput.month).padStart(2,"0")}-${String(partnerInput.day).padStart(2,"0")}`;
+    const birthTime = partnerInput.time_unknown || partnerInput.hour === null ? null : `${String(partnerInput.hour).padStart(2,"0")}:${String(partnerInput.minute).padStart(2,"0")}:00`;
+    const { data: created, error } = await sb.from("birth_profiles").insert({
+      user_id: order.user_id || null,
+      label: "궁합 상대",
+      relationship: "spouse",
+      gender: partnerInput.gender === "남" ? "male" : "female",
+      calendar_type: partnerInput.calendar_type === "solar" ? "solar" : "lunar",
+      is_leap_month: partnerInput.calendar_type === "lunarLeap",
+      birth_date: birthDate,
+      birth_time: birthTime,
+      time_unknown: partnerInput.time_unknown,
+      birth_region: partnerInput.region_name,
+      longitude: partnerInput.longitude,
+      timezone: "Asia/Seoul",
+      is_primary: false,
+    }).select("id").single();
+    if (error || !created) throw new Error("PARTNER_PROFILE_CREATE_FAILED:" + (error?.message || "NO_PROFILE"));
+    partnerProfileId = created.id;
+  }
+
+  let { data: calcRow } = await sb.from("saju_calculations")
+    .select("id,calculation_json")
+    .eq("birth_profile_id", partnerProfileId)
+    .order("calculated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!calcRow) {
+    const calculation = calcSaju(
+      partnerInput.year, partnerInput.month, partnerInput.day,
+      partnerInput.time_unknown ? null : partnerInput.hour,
+      partnerInput.gender, partnerInput.calendar_type, partnerInput.minute,
+      partnerInput.time_unknown ? null : partnerInput.longitude,
+      !partnerInput.time_unknown,
+      partnerInput.region_name,
+    );
+    const { data: c, error } = await sb.from("saju_calculations").insert({
+      user_id: order.user_id || null,
+      birth_profile_id: partnerProfileId,
+      engine_version: "manse-v3-deterministic",
+      input_json: partnerInput,
+      calculation_json: calculation,
+      raw_time_candidate_json: calculation.raw_time_candidate || null,
+      correction_policy: partnerInput.time_unknown ? "none" : "longitude+equation_of_time",
+    }).select("id,calculation_json").single();
+    if (error || !c) throw new Error("PARTNER_CALC_CREATE_FAILED:" + (error?.message || "NO_CALC"));
+    calcRow = c;
+  }
+  return { partnerProfileId, partnerInput, calcRow };
+}
+
 async function resetLegacyReportIfNeeded(sb: any, report: any, config: ReportCategoryConfig) {
   if (report.prompt_version === config.version) return report;
   const oldJson: any = report.report_json || {};
@@ -550,6 +693,9 @@ async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectio
       life_scenes: Array.isArray(content.life_scenes) ? content.life_scenes : [],
       parent_misreads: Array.isArray(content.parent_misreads) ? content.parent_misreads : [],
       parent_actions: Array.isArray(content.parent_actions) ? content.parent_actions : [],
+      a_perspective: Array.isArray(content.a_perspective) ? content.a_perspective : [],
+      b_perspective: Array.isArray(content.b_perspective) ? content.b_perspective : [],
+      repair_actions: Array.isArray(content.repair_actions) ? content.repair_actions : [],
       scripts: Array.isArray(content.scripts) ? content.scripts : [],
       reframe: content.reframe || "",
       risk: content.risk || "",
@@ -632,8 +778,26 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       return;
     }
 
-    const calcCtx = calcContext(init.calcRow.calculation_json, input);
-    const childMeaningContext = config.key === "child" ? buildChildMeaningContext(calcCtx) : null;
+    const primaryCtx = calcContext(init.calcRow.calculation_json, input);
+    let partnerInit: any = null;
+    let partnerCtx: any = null;
+    let coupleFacts: any = null;
+    let generationCtx: any = primaryCtx;
+    if (config.key === "couple") {
+      partnerInit = await ensurePartnerInitialized(sb, order, init.birthProfileId, currentJson.partner_birth_profile_id || null);
+      partnerCtx = calcContext(partnerInit.calcRow.calculation_json, partnerInit.partnerInput);
+      coupleFacts = buildCoupleFacts(primaryCtx, partnerCtx);
+      generationCtx = combineCoupleContext(primaryCtx, partnerCtx, coupleFacts);
+      currentJson = {
+        ...currentJson,
+        partner_birth_profile_id: partnerInit.partnerProfileId,
+        partner_calculation_id: partnerInit.calcRow.id,
+        partner_input_snapshot: partnerInit.partnerInput,
+      };
+      await sb.from("reports").update({ report_json: currentJson }).eq("id", report.id);
+    }
+    const childMeaningContext = config.key === "child" ? buildChildMeaningContext(primaryCtx) : null;
+    const coupleMeaningContext = config.key === "couple" ? buildCoupleMeaningContext(primaryCtx, partnerCtx, coupleFacts) : null;
     let narrative = currentJson.narrative;
     if (!narrative) {
       await sb.from("reports").update({
@@ -650,18 +814,32 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       }).eq("id", report.id);
       let narrativeAttempt = 0;
       while (true) {
-        narrative = config.key === "child"
-          ? await generateChildNarrative(calcCtx, childMeaningContext, input.question)
-          : await generateNarrative(calcCtx, input.question, input.category, config);
-        if (config.key !== "child") break;
-        const narrativeAudit = auditCustomerFacingChildReport([], narrative);
-        const depthAudit = auditChildReportDepth([], config.outline, narrative);
-        if (narrativeAudit.ok && depthAudit.ok) break;
-        narrativeAttempt += 1;
-        if (narrativeAttempt >= 4) {
-          const detail = [...narrativeAudit.failures, ...depthAudit.failures].map((x) => x.issues.join("+")).join("|");
-          throw new Error(`NARRATIVE_CUSTOMER_AUDIT_FAILED:${detail}`);
+        if (config.key === "child") narrative = await generateChildNarrative(primaryCtx, childMeaningContext, input.question);
+        else if (config.key === "couple") narrative = await generateCoupleNarrative(primaryCtx, partnerCtx, coupleFacts, coupleMeaningContext, input.question);
+        else narrative = await generateNarrative(primaryCtx, input.question, input.category, config);
+
+        if (config.key === "child") {
+          const narrativeAudit = auditCustomerFacingChildReport([], narrative);
+          const depthAudit = auditChildReportDepth([], config.outline, narrative);
+          if (narrativeAudit.ok && depthAudit.ok) break;
+          narrativeAttempt += 1;
+          if (narrativeAttempt >= 4) {
+            const detail = [...narrativeAudit.failures, ...depthAudit.failures].map((x) => x.issues.join("+")).join("|");
+            throw new Error(`NARRATIVE_CUSTOMER_AUDIT_FAILED:${detail}`);
+          }
+          continue;
         }
+        if (config.key === "couple") {
+          const depthAudit = auditCoupleReportDepth([], config.outline, narrative);
+          if (depthAudit.ok) break;
+          narrativeAttempt += 1;
+          if (narrativeAttempt >= 4) {
+            const detail = depthAudit.failures.map((x) => x.issues.join("+")).join("|");
+            throw new Error(`COUPLE_NARRATIVE_AUDIT_FAILED:${detail}`);
+          }
+          continue;
+        }
+        break;
       }
       const { data: latestAfterNarrative } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
       currentJson = {
@@ -719,6 +897,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     // 가장 느린 SECTION 때문에 나머지 슬롯이 쉬는 기존 wave barrier를 제거한다.
     let cursor = 0;
     const recentChildPlans: any[] = [];
+    const recentCouplePlans: any[] = [];
     let progressSerial: Promise<any> = Promise.resolve();
 
     const queueProgress = (extra: any = {}) => {
@@ -727,7 +906,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     };
 
     const runOne = async (spec: ReportSectionSpec) => {
-      const subset = evidenceSubset(calcCtx, [spec], {
+      const subset = evidenceSubset(generationCtx, [spec], {
         question: input.question,
         chapter1_summary: narrative?.chapter_theses?.["1"] || "",
         chapter2_summary: narrative?.chapter_theses?.["2"] || "",
@@ -736,6 +915,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
 
       let candidate: any;
       let childPlan: any = null;
+      let couplePlan: any = null;
       if (config.key === "child") {
         childPlan = await planChildSection({
           spec,
@@ -755,6 +935,30 @@ async function runGenerationSlice(token: string, requestUrl: string) {
         candidate = await generateChildSection({
           spec,
           plan: childPlan,
+          calcSubset: subset,
+          narrative,
+          question: input.question,
+          recent: recentSummary,
+        });
+      } else if (config.key === "couple") {
+        couplePlan = await planCoupleSection({
+          spec,
+          calcSubset: subset,
+          narrative,
+          meaning: coupleMeaningContext,
+          question: input.question,
+          recentPlans: recentCouplePlans,
+        });
+        recentCouplePlans.push({
+          section_no: spec.section_no,
+          main_thesis: couplePlan?.main_thesis || "",
+          daily_scenes: (couplePlan?.interaction_blocks || []).map((x:any) => x?.daily_scene).filter(Boolean),
+          repair_actions: (couplePlan?.interaction_blocks || []).map((x:any) => x?.repair_action).filter(Boolean),
+        });
+        if (recentCouplePlans.length > 10) recentCouplePlans.shift();
+        candidate = await generateCoupleSection({
+          spec,
+          plan: couplePlan,
           calcSubset: subset,
           narrative,
           question: input.question,
@@ -782,10 +986,12 @@ async function runGenerationSlice(token: string, requestUrl: string) {
         : { ok: true, issues: [] as string[] };
       let depthValidation = config.key === "child"
         ? validateChildSectionDepth({ spec, candidate, plan: childPlan })
-        : { ok: true, issues: [] as string[] };
+        : config.key === "couple"
+          ? validateCoupleSectionDepth({ spec, candidate, plan: couplePlan })
+          : { ok: true, issues: [] as string[] };
       let rewriteCount = 0;
 
-      const MAX_REWRITES = config.key === "child" ? 4 : 1;
+      const MAX_REWRITES = (config.key === "child" || config.key === "couple") ? 4 : 1;
       while ((!validation.ok || !customerValidation.ok || !depthValidation.ok) && rewriteCount < MAX_REWRITES) {
         const allIssues = [...validation.issues, ...customerValidation.issues, ...depthValidation.issues];
         if (config.key === "child") {
@@ -803,6 +1009,27 @@ async function runGenerationSlice(token: string, requestUrl: string) {
           candidate = await generateChildSection({
             spec,
             plan: childPlan,
+            calcSubset: subset,
+            narrative,
+            question: input.question,
+            recent: recentSummary,
+            previousCandidate: candidate,
+            issues: allIssues,
+          });
+        } else if (config.key === "couple") {
+          if (rewriteCount === 2) {
+            couplePlan = await planCoupleSection({
+              spec,
+              calcSubset: subset,
+              narrative,
+              meaning: coupleMeaningContext,
+              question: input.question,
+              recentPlans: recentCouplePlans,
+            });
+          }
+          candidate = await generateCoupleSection({
+            spec,
+            plan: couplePlan,
             calcSubset: subset,
             narrative,
             question: input.question,
@@ -832,7 +1059,9 @@ async function runGenerationSlice(token: string, requestUrl: string) {
           : { ok: true, issues: [] as string[] };
         depthValidation = config.key === "child"
           ? validateChildSectionDepth({ spec, candidate, plan: childPlan })
-          : { ok: true, issues: [] as string[] };
+          : config.key === "couple"
+            ? validateCoupleSectionDepth({ spec, candidate, plan: couplePlan })
+            : { ok: true, issues: [] as string[] };
       }
 
       const fatalIssues = [

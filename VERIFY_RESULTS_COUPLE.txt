@@ -1,0 +1,17 @@
+COUPLE MIDLAYER VERIFY OK
+- second-person checkout input: OK
+- two deterministic saju calculations: OK
+- cross relation facts: OK
+- 50 sections from 부부궁합_최종본.md: OK
+- person meaning -> couple narrative -> loop/love map -> section planner -> generator -> quality: OK
+- raw relation table / meta language gate: OK
+- conflict loop / scripts / roadmap / final answer gates: OK
+- PDF final audit: OK
+
+Local syntax checks in artifact environment:
+- lib/couple/*.ts transpile: OK
+- report-categories.ts transpile: OK
+- report generate/pdf/payment route transpile: OK
+- public/saju.html inline script parse: OK
+
+Full npm run build must be run on the user's project after dependencies are installed.

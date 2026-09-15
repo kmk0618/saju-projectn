@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "check:child": "node scripts/verify-child-midlayer.mjs"
+    "check:child": "node scripts/verify-child-midlayer.mjs",
+    "check:couple": "node scripts/verify-couple-midlayer.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium": "^152.0.0",

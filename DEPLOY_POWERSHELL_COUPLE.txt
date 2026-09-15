@@ -1,0 +1,10 @@
+cd "C:\Users\lovem\바이브코딩\나의사주_nextjs_v1"
+
+npm run check:child
+npm run check:couple
+npx tsc --noEmit
+npm run build
+
+git add .
+git commit -m "부부궁합 50SECTION 중간해석층 v2 적용"
+git push
