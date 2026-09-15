@@ -99,7 +99,7 @@ const COUPLE_CHAPTERS = {
   3: "관계를 살리는 전략",
 };
 
-export const COUPLE_REPORT_OUTLINE = makeOutline(COUPLE_CHAPTERS, [
+const COUPLE_REPORT_BASE_OUTLINE = makeOutline(COUPLE_CHAPTERS, [
   [1,1,"두 사람 기본 정보","두 사람의 출생 정보와 시간 미상 여부, 일간, 원국 핵심을 정확히 보여준다.",["identity","partner_identity","pillars","partner_pillars","day_master","partner_day_master"],"normal","table"],
   [2,1,"A(여)의 사주 원국","A의 원국·오행·십성·강약·용신 방향을 관계에서 필요한 것과 연결해 설명한다.",["pillars","five_elements","ten_gods","strength","strength_pct","useful_god_candidates","hidden_stems"],"critical","table"],
   [3,1,"B(남)의 사주 원국","B의 원국·오행·십성·강약·용신 방향을 관계에서 필요한 것과 연결해 설명한다.",["partner_pillars","partner_five_elements","partner_ten_gods","partner_strength","partner_strength_pct","partner_useful_god_candidates","partner_hidden_stems"],"critical","table"],
@@ -153,6 +153,20 @@ export const COUPLE_REPORT_OUTLINE = makeOutline(COUPLE_CHAPTERS, [
   [49,3,"1개월·3개월·1년 관계 로드맵","1개월 대화 습관, 3개월 갈등 패턴 개선과 공동 루틴, 1년 역할·위기 대응 합의를 완료 기준과 함께 제시한다.",["current_daeun","partner_current_daeun","annual_flow","partner_annual_flow","cross_relations"],"critical","strategy"],
   [50,3,"최종 궁합 결론","처음의 질문에 직접 답하며 관계 한 문장 정의, 살릴 것, 멈출 것, 갈등 프로토콜, 1년 실천을 정리한다.",["day_master_pair","day_branch_pair","cross_relations","element_exchange","current_daeun","partner_current_daeun"],"critical","qa"],
 ]);
+
+const coupleTargetChars = (sectionNo:number, depth:ReportDepth):[number,number] => {
+  if (sectionNo === 1) return [900,1500];
+  if ([15,35,50].includes(sectionNo)) return [2600,3900];
+  if (depth === "critical") return [3200,4800];
+  if (depth === "deep") return [2400,3600];
+  return [1700,2600];
+};
+
+export const COUPLE_REPORT_OUTLINE: ReportSectionSpec[] = COUPLE_REPORT_BASE_OUTLINE.map((spec) => ({
+  ...spec,
+  target_chars: coupleTargetChars(spec.section_no, spec.depth),
+}));
+
 
 const PARENT_CHILD_CHAPTERS = {
   1: "부모와 아이의 기본 기질 차이",
@@ -250,8 +264,8 @@ export const REPORT_CATEGORY_CONFIGS: Record<ReportCategoryKey, ReportCategoryCo
     slug: "couple-compatibility",
     title: "커플·부부 궁합 리포트",
     subtitle: "두 사람의 끌림·갈등·감정·돈·생활·장기 관계 전략을 연결한 개인맞춤 궁합 리포트",
-    version: "couple-compatibility-aqua-50-v2-midlayer",
-    focus: "두 사람을 각각 이해한 뒤 A 행동→B 해석→B 반응→A 재해석의 상호작용 루프를 중심으로 쓴다. 좋다/나쁘다 점수 대신 끌림·보완·갈등·사랑 번역·생활 장면·대운세운 교차·관계 운영 규칙을 실제 부부 생활 언어로 연결한다. 원시 합충형파해 표, 구조 확인, 엔진 확정 문구, 내부 제작 설명을 고객 본문에 노출하지 않는다.",
+    version: "couple-compatibility-aqua-50-v3-unique-depth",
+    focus: "두 사람을 각각 이해한 뒤 A 행동→B 해석→B 반응→A 재해석의 상호작용 루프를 중심으로 쓴다. 50개 SECTION은 Concept Registry의 소유권을 따라 각자 다른 결론과 생활영역을 전담한다. 앞 SECTION에서 설명한 사주 원리를 뒤에서 다시 풀지 않고 결과가 실제 생활에서 어떻게 나타나는지만 확장한다. 각 SECTION의 70% 이상은 새로운 생활 장면·관점·의사결정 기준·복구 행동이어야 한다. 좋다/나쁘다 점수 대신 끌림·보완·갈등·사랑 번역·생활 장면·대운세운 교차·관계 운영 규칙을 실제 부부 생활 언어로 연결한다. 원시 합충형파해 표, 구조 확인, 엔진 확정 문구, 내부 제작 설명과 의미 중복 문장을 고객 본문에 노출하지 않는다.",
     outline: COUPLE_REPORT_OUTLINE,
     requiresSecondProfile: true,
   },

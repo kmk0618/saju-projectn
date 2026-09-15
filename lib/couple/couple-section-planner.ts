@@ -1,4 +1,5 @@
 import type { ReportSectionSpec } from "@/lib/report-spec";
+import { coupleOwnershipPrompt } from "@/lib/couple/couple-concept-registry";
 
 export const COUPLE_SECTION_PLAN_SCHEMA = {
   type:"object",additionalProperties:false,
@@ -12,8 +13,10 @@ export const COUPLE_SECTION_PLAN_SCHEMA = {
       common_misread:{type:"string"}, repair_action:{type:"string"}, script:{type:"string"}, strength_reframe:{type:"string"}
     },required:["basis","a_inner","a_behavior","b_inner","b_behavior","interaction_meaning","daily_scene","common_misread","repair_action","script","strength_reframe"]}},
     table_plan:{type:"object",additionalProperties:false,properties:{required:{type:"boolean"},headers:{type:"array",items:{type:"string"}},row_purposes:{type:"array",items:{type:"string"}}},required:["required","headers","row_purposes"]},
+    new_information:{type:"array",minItems:3,maxItems:8,items:{type:"string"}},
+    scene_domains_used:{type:"array",minItems:2,maxItems:8,items:{type:"string"}},
     must_include:{type:"array",items:{type:"string"}}, must_avoid:{type:"array",items:{type:"string"}}, closing_takeaway:{type:"string"}
-  },required:["section_no","subtitle","main_thesis","interaction_blocks","table_plan","must_include","must_avoid","closing_takeaway"]
+  },required:["section_no","subtitle","main_thesis","interaction_blocks","table_plan","new_information","scene_domains_used","must_include","must_avoid","closing_takeaway"]
 };
 
 function special(no:number){
@@ -57,8 +60,11 @@ ${JSON.stringify(args.meaning)}
 [질문]
 ${args.question || "우리는 왜 끌리고 왜 부딪히며, 어떻게 하면 오래 잘 지낼 수 있을까요?"}
 
-[최근 설계 — 반복 회피]
-${JSON.stringify(args.recentPlans.slice(-8))}
+[SECTION 소유권 계약 — 이 SECTION만 깊게 설명할 것]
+${JSON.stringify(coupleOwnershipPrompt(args.spec.section_no))}
+
+[이전에 사용한 설계 — 의미 중복 회피]
+${JSON.stringify(args.recentPlans.slice(-20))}
 
 [설계 규칙]
 1. 원시 사주값 → A가 느끼는 것 → A 행동 → B가 받아들이는 것 → B 행동 → 실제 생활 장면 → 오해 → 복구 행동으로 내려간다.
@@ -71,6 +77,11 @@ ${JSON.stringify(args.recentPlans.slice(-8))}
 8. 관계 계산값을 고객에게 그대로 나열한 검산표 금지.
 9. 최근 SECTION과 같은 장면·대화·조언을 반복하지 않는다.
 10. 내부 지침·엔진·calc·subset·JSON·필드명·'이 섹션에서는' 같은 제작자 문구 금지.
+11. 이 SECTION은 소유권 계약의 unique_thesis와 owned_concepts에 집중한다. do_not_repeat 항목은 새로 설명하지 말고 꼭 필요할 때만 1문장 이내로 연결한다.
+12. new_information에는 이전 SECTION에서 아직 설명하지 않은 새 정보만 3개 이상 적는다. 같은 결론을 말만 바꿔 반복하면 실패다.
+13. scene_domains_used는 이 SECTION 고유의 생활 장면 영역을 최소 2개 선택한다. 최근 SECTION의 장면을 그대로 재사용하지 않는다.
+14. 각 interaction block은 서로 다른 장면과 다른 오해/복구 포인트를 가져야 한다.
+15. 요약 SECTION(15,35,50)도 앞 문장을 복사하지 말고 이미 나온 내용을 새 기준으로 압축·의사결정화한다.
 
 [특별 계약]
 ${special(args.spec.section_no)}

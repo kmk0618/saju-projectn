@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { buildReportHtml, htmlToPdfBuffer, PDF_RENDERER_VERSION } from "@/lib/report-pdf";
 import { auditCustomerFacingChildReport } from "@/lib/report-quality";
 import { auditChildReportDepth } from "@/lib/child/child-quality";
-import { auditCoupleReportDepth } from "@/lib/couple/couple-quality";
+import { auditCoupleReportDepth, auditCoupleReportUniqueness } from "@/lib/couple/couple-quality";
 import { REPORT_CATEGORY_CONFIGS } from "@/lib/report-categories";
 
 export const runtime = "nodejs";
@@ -64,8 +64,12 @@ async function ensurePdf(sb: any, order: any, report: any) {
 
   if (String(rj.report_category || "life") === "couple") {
     const depthAudit = auditCoupleReportDepth(sections as any[], REPORT_CATEGORY_CONFIGS.couple.outline, rj.narrative || null);
-    if (!depthAudit.ok) {
-      const detail = depthAudit.failures.map((x) => `S${x.section_no}:${x.issues.join("+")}`).join("|").slice(0, 2400);
+    const uniqAudit = auditCoupleReportUniqueness(sections as any[], REPORT_CATEGORY_CONFIGS.couple.outline);
+    if (!depthAudit.ok || !uniqAudit.ok) {
+      const detail = [...depthAudit.failures, ...uniqAudit.failures]
+        .map((x) => `S${x.section_no}:${x.issues.join("+")}`)
+        .join("|")
+        .slice(0, 2400);
       throw new Error(`PDF_COUPLE_CONTENT_AUDIT_FAILED:${detail}`);
     }
   }

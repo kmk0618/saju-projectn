@@ -19,7 +19,7 @@ import { buildCoupleMeaningContext } from "@/lib/couple/couple-meaning-map";
 import { COUPLE_NARRATIVE_SCHEMA, buildCoupleNarrativePrompt } from "@/lib/couple/couple-narrative";
 import { COUPLE_SECTION_PLAN_SCHEMA, buildCoupleSectionPlanPrompt } from "@/lib/couple/couple-section-planner";
 import { COUPLE_SECTION_ITEM_SCHEMA, buildCoupleSectionGenerationPrompt } from "@/lib/couple/couple-section-generator";
-import { validateCoupleSectionDepth, auditCoupleReportDepth } from "@/lib/couple/couple-quality";
+import { validateCoupleSectionDepth, auditCoupleReportDepth, auditCoupleReportUniqueness } from "@/lib/couple/couple-quality";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -719,6 +719,68 @@ async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectio
   if (insertError) throw new Error(`SECTION_${spec.section_no}_SAVE_FAILED:${insertError.message}`);
 }
 
+
+async function repairCoupleFinalAuditIfNeeded(
+  sb:any,
+  report:any,
+  config:ReportCategoryConfig,
+  narrative:any,
+  currentJson:any,
+) {
+  if (config.key !== "couple") return { repaired:false, sections:[] as number[] };
+  const { data: rows, error } = await sb
+    .from("report_sections")
+    .select("section_no,part_no,part_title,section_title,content_html,content_json")
+    .eq("report_id", report.id)
+    .gte("section_no", 1)
+    .lte("section_no", config.outline.length)
+    .order("section_no", { ascending:true });
+  if (error) throw new Error("COUPLE_FINAL_AUDIT_LOAD_FAILED:" + error.message);
+  if (!rows || rows.length < config.outline.length) return { repaired:false, sections:[] as number[] };
+
+  const depth = auditCoupleReportDepth(rows as any[], config.outline, narrative);
+  const uniq = auditCoupleReportUniqueness(rows as any[], config.outline);
+  const failures = [...depth.failures, ...uniq.failures];
+  if (!failures.length) return { repaired:false, sections:[] as number[] };
+
+  const sectionNos = [...new Set(failures.map((x:any)=>Number(x.section_no||0)).filter((x:number)=>x>=1 && x<=config.outline.length))].sort((a,b)=>a-b);
+  if (!sectionNos.length) {
+    const detail=failures.map((x:any)=>`S${x.section_no}:${x.issues.join("+")}`).join("|").slice(0,2400);
+    throw new Error(`COUPLE_FINAL_AUDIT_FAILED:${detail}`);
+  }
+
+  const { data: latestState } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
+  const baseJson = latestState?.report_json || currentJson || {};
+  const round = Number(baseJson?.couple_final_repair_round || 0);
+  if (round >= 3) {
+    const detail=failures.map((x:any)=>`S${x.section_no}:${x.issues.join("+")}`).join("|").slice(0,2400);
+    throw new Error(`COUPLE_FINAL_AUDIT_REPAIR_EXHAUSTED:${detail}`);
+  }
+
+  const { error: delError } = await sb.from("report_sections").delete().eq("report_id", report.id).in("section_no", sectionNos);
+  if (delError) throw new Error("COUPLE_FINAL_AUDIT_DELETE_FAILED:" + delError.message);
+
+  const issueMap = failures
+    .filter((x:any)=>sectionNos.includes(Number(x.section_no)))
+    .map((x:any)=>`S${x.section_no}:${x.issues.join("+")}`)
+    .join("|")
+    .slice(0,1800);
+
+  const nextJson = {
+    ...(baseJson || {}),
+    phase:"writing",
+    progress:90,
+    pdf_ready:false,
+    background_running:true,
+    background_heartbeat_at:Date.now(),
+    background_last_error:`COUPLE_FINAL_REPAIR_ROUND_${round+1}:${issueMap}`,
+    couple_final_repair_round:round+1,
+    couple_last_repaired_sections:sectionNos,
+  };
+  await sb.from("reports").update({ report_json:nextJson, error_message:null }).eq("id", report.id);
+  return { repaired:true, sections:sectionNos };
+}
+
 async function sectionCount(sb: any, reportId: string, totalSections: number) {
   // 예전 레거시 섹션 데이터가 남아 있어도 현재 상품의 섹션 수만 진행률에 포함한다.
   const { count, error } = await sb.from("report_sections")
@@ -866,6 +928,11 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     const missing = config.outline.filter((x) => !existingNos.has(x.section_no));
 
     if (!missing.length) {
+      const finalRepair = await repairCoupleFinalAuditIfNeeded(sb, report, config, narrative, currentJson);
+      if (finalRepair.repaired) {
+        await kickWorker(generateUrl, token);
+        return;
+      }
       await updateProgressNow(sb, report.id, narrative, config, { background_last_error: null });
       const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
       if (!pdfResp.ok) {
@@ -897,7 +964,16 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     // 가장 느린 SECTION 때문에 나머지 슬롯이 쉬는 기존 wave barrier를 제거한다.
     let cursor = 0;
     const recentChildPlans: any[] = [];
-    const recentCouplePlans: any[] = [];
+    const recentCouplePlans: any[] = config.key === "couple"
+      ? (existingRows || []).slice(-20).map((r:any) => ({
+          section_no:Number(r?.section_no||0),
+          main_thesis:r?.content_json?.opening_sentence || "",
+          daily_scenes:Array.isArray(r?.content_json?.life_scenes)?r.content_json.life_scenes:[],
+          repair_actions:Array.isArray(r?.content_json?.repair_actions)?r.content_json.repair_actions:[],
+          new_information:[],
+          scene_domains_used:[],
+        }))
+      : [];
     let progressSerial: Promise<any> = Promise.resolve();
 
     const queueProgress = (extra: any = {}) => {
@@ -954,8 +1030,10 @@ async function runGenerationSlice(token: string, requestUrl: string) {
           main_thesis: couplePlan?.main_thesis || "",
           daily_scenes: (couplePlan?.interaction_blocks || []).map((x:any) => x?.daily_scene).filter(Boolean),
           repair_actions: (couplePlan?.interaction_blocks || []).map((x:any) => x?.repair_action).filter(Boolean),
+          new_information: couplePlan?.new_information || [],
+          scene_domains_used: couplePlan?.scene_domains_used || [],
         });
-        if (recentCouplePlans.length > 10) recentCouplePlans.shift();
+        if (recentCouplePlans.length > 20) recentCouplePlans.shift();
         candidate = await generateCoupleSection({
           spec,
           plan: couplePlan,
@@ -1116,6 +1194,11 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     });
 
     if (state.done) {
+      const finalRepair = await repairCoupleFinalAuditIfNeeded(sb, report, config, narrative, currentJson);
+      if (finalRepair.repaired) {
+        await kickWorker(generateUrl, token);
+        return;
+      }
       const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
       if (!pdfResp.ok) {
         const t = await pdfResp.text().catch(() => "");

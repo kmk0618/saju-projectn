@@ -1,4 +1,5 @@
 import type { ReportSectionSpec } from "@/lib/report-spec";
+import { coupleOwnershipPrompt } from "@/lib/couple/couple-concept-registry";
 
 export const COUPLE_SECTION_ITEM_SCHEMA = {
   type:"object",additionalProperties:false,
@@ -27,8 +28,11 @@ ${JSON.stringify(args.narrative)}
 [질문]
 ${args.question || "우리는 왜 끌리고 왜 부딪히며, 어떻게 하면 오래 잘 지낼 수 있을까요?"}
 
+[SECTION 소유권 계약]
+${JSON.stringify(coupleOwnershipPrompt(args.spec.section_no))}
+
 [최근 SECTION — 반복 회피]
-${JSON.stringify(args.recent.slice(-10))}
+${JSON.stringify(args.recent.slice(-16))}
 
 [완성 규칙]
 - 고객에게는 계산 과정이 아니라 관계 해석 결과만 보여준다.
@@ -44,6 +48,12 @@ ${JSON.stringify(args.recent.slice(-10))}
 - life_scenes, a_perspective, b_perspective, repair_actions, scripts, reframe은 content_html에 실제로 들어간 내용을 추출해 반환한다.
 - 원시 합충형파해 표만 놓고 끝내지 않는다.
 - 같은 조언으로 분량을 채우지 않는다.
+- 목표 분량은 ${args.spec.target_chars[0]}~${args.spec.target_chars[1]}자다. 분량을 늘릴 때 기존 결론을 반복하지 말고 새로운 생활 장면·상대 관점·의사결정 기준·복구 행동을 추가한다.
+- SECTION 소유권 계약의 owned_concepts가 본문의 중심이어야 한다. do_not_repeat는 다른 SECTION의 전담 개념이므로 자세히 재설명하지 않는다.
+- 같은 핵심 결론을 다른 표현으로 두 번 쓰지 않는다. 한 번 설명한 뒤 다음 문단은 반드시 새로운 정보로 전진한다.
+- 생활 장면은 최소 3개가 서로 다른 맥락이어야 한다(예: 돈/퇴근후/가사처럼). 같은 장면의 변형만 반복하지 않는다.
+- 실제 조언은 추상적인 "대화하세요/배려하세요"가 아니라 누가 언제 무엇을 어떻게 할지까지 쓴다.
+- 요약 SECTION은 앞 문장을 복사하지 말고 비교표·결정 기준·체크포인트처럼 새로운 편집 방식으로 압축한다.
 - HTML은 <p>, <p class="lead">, <div class="subtitle">, <div class="subhead">, <div class="emph">, <table>, <ul class="check">, <blockquote>를 필요할 때만 쓴다.
 
 반드시 JSON 스키마에 맞춰 답하세요.`;

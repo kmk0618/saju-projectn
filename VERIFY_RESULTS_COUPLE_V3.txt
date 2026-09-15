@@ -1,0 +1,25 @@
+COUPLE UNIQUE DEPTH v3 VERIFY RESULTS
+
+PASS npm run check:couple
+- two-person checkout input: OK
+- deterministic calculations + cross facts: OK
+- 50 sections: OK
+- Concept Registry: OK
+- Section ownership prompt: OK
+- target char expansion: OK
+- semantic duplicate audit: OK
+- repeated sentence/scene/script/repair gate: OK
+- duplicate sections auto-repair before PDF: OK
+- PDF final uniqueness audit: OK
+
+SYNTAX TRANSPILE CHECK
+- couple-concept-registry.ts: OK
+- couple-section-planner.ts: OK
+- couple-section-generator.ts: OK
+- couple-quality.ts: OK
+- report-categories.ts: OK
+- generate/route.ts: OK
+- pdf/route.ts: OK
+
+NOTE
+Full `npx tsc --noEmit` cannot complete in the artifact workspace because node_modules is intentionally excluded from the ZIP. Run npm install/build in the user's local project before push.
