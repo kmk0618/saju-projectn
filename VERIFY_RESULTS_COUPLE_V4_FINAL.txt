@@ -1,0 +1,13 @@
+COUPLE FINAL V4 VERIFY OK
+- Base product frame: 부부궁합_최종본.md fixed
+- 3 CHAPTER / 50 SECTION fixed
+- A/B deterministic saju calculations + cross facts: OK
+- meaning -> couple narrative -> concept registry -> planner -> generator -> quality: OK
+- semantic duplicate / repeated sentence / repeated scene gates: OK
+- arbitrary repeated boxes blocked: OK
+- raw audit/meta language blocked: OK
+- generic editorial supplement disabled for couple: OK
+- original couple table/subtitle/callout style locked: OK
+- PDF final audit: OK
+- local npm run check:couple: PASSED
+- full tsc/build: run after npm install on deployment PC

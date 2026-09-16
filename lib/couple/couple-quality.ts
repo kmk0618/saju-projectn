@@ -7,6 +7,7 @@ const INTERNAL:Array<{code:string;re:RegExp}>=[
   {code:"META_MISSING",re:/(제공된\s*(?:값|계산값|데이터)|계산값이\s*(?:없|제시되지)|새로\s*계산하지|확정하시기\s*바랍니다)/i},
   {code:"AUTHOR_VOICE",re:/(이\s*섹션에서는|이번\s*섹션에서는|아래\s*데이터를\s*바탕으로)/i},
   {code:"RAW_AUDIT_TABLE",re:/(구조\s*확인|참고\s*방법|관계\s*종류\s*[|·/]\s*사주\s*구조)/i},
+  {code:"ARBITRARY_REPEAT_BOX",re:/(관계\s*점검\s*질문|이\s*SECTION의\s*판단\s*기준|유지\s*[·/|]\s*조정\s*[·/|]\s*경고|실제\s*생활에서\s*더\s*깊게\s*보면|관계\s*구조를\s*생활로\s*번역하면)/i},
 ];
 function text(x:any){return String(x??"").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/\s+/g," ").trim();}
 function all(c:CoupleCandidate){return text([c.subtitle,c.opening_sentence,c.content_html,c.risk,c.action_point,c.emphasis,c.reframe,...(c.life_scenes||[]),...(c.a_perspective||[]),...(c.b_perspective||[]),...(c.repair_actions||[]),...(c.scripts||[]),...(c.checklist||[]),...(c.table_rows||[]).flatMap(x=>[x.label,x.value])].join("\n"));}

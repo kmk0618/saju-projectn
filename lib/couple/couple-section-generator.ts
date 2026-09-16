@@ -54,7 +54,10 @@ ${JSON.stringify(args.recent.slice(-16))}
 - 생활 장면은 최소 3개가 서로 다른 맥락이어야 한다(예: 돈/퇴근후/가사처럼). 같은 장면의 변형만 반복하지 않는다.
 - 실제 조언은 추상적인 "대화하세요/배려하세요"가 아니라 누가 언제 무엇을 어떻게 할지까지 쓴다.
 - 요약 SECTION은 앞 문장을 복사하지 말고 비교표·결정 기준·체크포인트처럼 새로운 편집 방식으로 압축한다.
-- HTML은 <p>, <p class="lead">, <div class="subtitle">, <div class="subhead">, <div class="emph">, <table>, <ul class="check">, <blockquote>를 필요할 때만 쓴다.
+- 편집 구조는 사용자가 제공한 기본 부부궁합 MD의 장치만 따른다. 새 카드/새 박스/새 판정표를 임의로 만들지 않는다.
+- 특히 '관계 점검 질문', '이 SECTION의 판단 기준', '유지/조정/경고', '실제 생활에서 더 깊게 보면', '관계 구조를 생활로 번역하면' 같은 반복 템플릿 제목·박스를 만들지 않는다.
+- 분량 확장은 새 편집장치가 아니라 해당 SECTION 고유의 새로운 해석·생활 장면·A/B 관점·의사결정 기준·복구 행동을 본문 안에서 자연스럽게 추가하는 방식으로만 한다.
+- HTML은 기본 MD에 있는 표현 방식에 맞춰 <p>, <p class="lead">, <div class="subhead">, <table>, <ul class="check">, <blockquote> 중심으로만 쓴다. <div class="emph">는 원래 MD의 강조문에 해당할 때만 제한적으로 쓴다.
 
 반드시 JSON 스키마에 맞춰 답하세요.`;
 if(args.previousCandidate) prompt+=`\n\n[이전 초안 — 실패 이유를 해결해 전면 재작성]\n실패 이유: ${(args.issues||[]).join(", ")}\n${JSON.stringify(args.previousCandidate)}`;
