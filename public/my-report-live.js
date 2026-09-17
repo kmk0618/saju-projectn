@@ -1,109 +1,47 @@
-
 (function(){
-  const URL="https://scmskjvhejnchhyufyfa.supabase.co";
-  const KEY="sb_publishable__aKUm_yLUXA1cS18gFuumA_J9lArQcD";
-
-  if(!window.supabase?.createClient) return;
-  const sb=window.supabase.createClient(URL,KEY,{
-    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
-  });
-
-  function addBackButton(){
-    const section=document.querySelector('#my');
-    if(!section || document.getElementById('myReportBackBtn')) return;
-    const head=section.querySelector('.sectionHead')||section;
-    const btn=document.createElement('button');
-    btn.id='myReportBackBtn';
-    btn.textContent='← 뒤로가기';
-    btn.style.cssText='border:0;background:#111;color:#fff;border-radius:12px;padding:11px 16px;font-weight:900;cursor:pointer;margin-bottom:16px';
-    btn.onclick=()=>history.length>1?history.back():location.href='/';
-    head.prepend(btn);
-  }
-
-  function findPurchasedPanel(){
-    const h3=[...document.querySelectorAll('#my h3')].find(x=>x.textContent.includes('구매한 리포트'));
-    return h3?.closest('.panel')||null;
-  }
-
-  function badge(status,ready){
-    if(ready) return '완료';
-    if(status==='generating') return '생성 중';
-    if(status==='queued') return '대기';
-    return '구매완료';
-  }
-
+  let busy=false, page=0, timer=null, guest=false;
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   async function renderOrders(){
-    addBackButton();
-    const panel=findPurchasedPanel();
-    if(!panel) return;
-
-    const {data:{session}}=await sb.auth.getSession();
-    if(!session?.user){
-      const list=panel.querySelector('.reportList');
-      if(list) list.innerHTML='<div style="padding:18px;color:#777">로그인 후 구매한 리포트를 확인할 수 있습니다.</div>';
-      return;
+    if(busy || document.hidden) return;
+    const panel=[...document.querySelectorAll('#my h3')].find(x=>x.textContent.includes('구매한 리포트'))?.closest('.panel');
+    const list=panel?.querySelector('.reportList');
+    if(!list || !window.sajuSupabase) return;
+    if(!panel.querySelector('.purchaseModes')){
+      const modes=document.createElement('div');modes.className='purchaseModes';
+      for(const [label,value] of [['회원 구매',false],['비회원 구매 찾기',true]]){
+        const button=document.createElement('button');button.textContent=label;
+        button.onclick=()=>{guest=value;page=0;renderOrders();};modes.append(button);
+      }
+      const note=document.createElement('p');note.style.cssText='font-size:12px;line-height:1.6;color:#746f62';
+      note.textContent='비회원 구매는 결제할 때 입력한 이메일과 같은 이메일로 로그인·인증한 뒤 찾을 수 있습니다.';
+      modes.append(note);list.before(modes);
     }
-
-    const {data:orders,error}=await sb
-      .from('orders')
-      .select('id,product_id,guest_access_token,status,created_at,merchant_uid')
-      .eq('user_id',session.user.id)
-      .eq('status','paid')
-      .order('created_at',{ascending:false});
-
-    if(error){console.error('[MY REPORT orders]',error);return;}
-
-    const ids=(orders||[]).map(o=>o.id);
-    const productIds=[...new Set((orders||[]).map(o=>o.product_id).filter(Boolean))];
-
-    let products=[];
-    if(productIds.length){
-      const pr=await sb.from('products').select('id,name,slug').in('id',productIds);
-      products=pr.data||[];
-    }
-    const pm=Object.fromEntries(products.map(p=>[p.id,p]));
-
-    let reports=[];
-    if(ids.length){
-      const rr=await sb.from('reports')
-        .select('id,order_id,status,report_json,title,prompt_version,created_at')
-        .in('order_id',ids);
-      reports=rr.data||[];
-    }
-    const rm={};
-    for(const r of reports){
-      if(!rm[r.order_id] || new Date(r.created_at)>new Date(rm[r.order_id].created_at)) rm[r.order_id]=r;
-    }
-
-    const list=panel.querySelector('.reportList');
-    if(!list) return;
-
-    if(!orders?.length){
-      list.innerHTML='<div style="padding:18px;color:#777">아직 구매한 리포트가 없습니다.</div>';
-      return;
-    }
-
-    list.innerHTML=orders.map((o,i)=>{
-      const p=pm[o.product_id]||{};
-      const r=rm[o.id]||null;
-      const j=r?.report_json||{};
-      const ready=r?.status==='completed' && String(r?.prompt_version||'').startsWith('life-report-aqua-50') && !!j.pdf_storage_path && j.pdf_ready!==false;
-      const st=badge(r?.status,ready);
-      const mark=i===0?'A':String(i+1).padStart(2,'0');
-      const click=ready
-        ? `location.href='/api/report/pdf?token=${encodeURIComponent(o.guest_access_token)}'`
-        : `location.href='/guest-report.html?token=${encodeURIComponent(o.guest_access_token)}'`;
-      return `<div class="report" style="cursor:pointer" onclick="${click}">
-        <div class="rmark">${mark}</div>
-        <div><b>${p.name||r?.title||'구매 리포트'}</b><small>${ready?'리포트 완성 · 클릭하여 열람':(j.completed_sections||0)+' / 50 생성 중'}</small></div>
-        <span class="status">${st}</span>
-      </div>`;
-    }).join('');
+    busy=true; clearTimeout(timer);
+    try{
+      const {data:{session}}=await window.sajuSupabase.auth.getSession();
+      if(!session){list.innerHTML='<p>로그인 후 구매한 리포트를 확인할 수 있습니다.</p>';return;}
+      const response=await fetch('/api/my-reports?page='+page+'&guest='+(guest?'1':'0'),{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});
+      const data=await response.json();
+      if(!response.ok || !data.ok) throw new Error(data.error==='VERIFIED_EMAIL_REQUIRED'?'가입 이메일 인증을 완료한 뒤 다시 찾아 주세요.':'구매 목록을 불러오지 못했습니다.');
+      list.innerHTML=data.orders.map((o,i)=>{
+        const label=o.ready?'완료':o.status==='failed'?'확인 필요':o.status==='queued'?'대기':'생성 중';
+        const detail=o.ready?'리포트 완성 · 열람 및 다운로드':o.status==='failed'?'생성이 중단되었습니다 · 눌러서 확인':`${o.completed} / ${o.total} 작성 중`;
+        return `<a class="report" href="/guest-report.html?token=${encodeURIComponent(o.token)}"><div class="rmark">${page*30+i+1}</div><div><b>${esc(o.name)}</b><small>${esc(detail)}</small><small>${esc(new Date(o.created_at).toLocaleDateString('ko-KR'))} 구매</small></div><span class="status">${label}</span></a>`;
+      }).join('') || '<p>아직 구매한 리포트가 없습니다.</p>';
+      if(page>0 || data.has_more){
+        const nav=document.createElement('div');
+        for(const [label,delta,enabled] of [['이전',-1,page>0],['다음',1,data.has_more]]){
+          const button=document.createElement('button');button.textContent=label;button.disabled=!enabled;
+          button.onclick=()=>{page+=delta;renderOrders();};nav.append(button);
+        }
+        list.append(nav);
+      }
+      if(data.orders.some(o=>!o.ready && o.status!=='failed'))timer=setTimeout(renderOrders,15000);
+    }catch(e){list.textContent=e.message;timer=setTimeout(renderOrders,30000);}
+    finally{busy=false;}
   }
-
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',renderOrders);
-  else renderOrders();
-
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderOrders();});
   window.addEventListener('focus',renderOrders);
-  setInterval(renderOrders,5000);
+  window.sajuSupabase?.auth.onAuthStateChange(()=>setTimeout(()=>{page=0;renderOrders();},0));
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',renderOrders);else renderOrders();
 })();

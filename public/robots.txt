@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /guest-report.html
+Disallow: /report-viewer.html
+Disallow: /payment-return.html
+Disallow: /login
+Disallow: /auth/
+Sitemap: https://saju.projectn.xyz/sitemap.xml

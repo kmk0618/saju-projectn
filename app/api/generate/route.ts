@@ -1,1 +1,3 @@
-export { GET, POST, runtime, maxDuration } from "../report/generate/route";
+export { GET, POST } from "../report/generate/route";
+export const runtime = "nodejs";
+export const maxDuration = 300;

@@ -1,3 +1,4 @@
+import sanitizeHtml from "sanitize-html";
 import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 import { REPORT_VERSION } from "@/lib/report-spec";
@@ -22,19 +23,13 @@ function esc(s: any) {
     .replaceAll("'", "&#39;");
 }
 
-function cleanContentHtml(html: string | null) {
-  if (!html) return "";
-  // body_html is generated from a constrained schema. Keep the editorial tags
-  // (tables, lead/subhead/emph/check) intact and strip only executable content.
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/<object[\s\S]*?<\/object>/gi, "")
-    .replace(/<embed[^>]*>/gi, "")
-    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/javascript\s*:/gi, "");
+export function cleanContentHtml(html: string | null) {
+  return sanitizeHtml(html || "", {
+    allowedTags: ["p","br","strong","b","em","i","u","h3","h4","ul","ol","li","blockquote","table","thead","tbody","tfoot","tr","th","td","div","span"],
+    allowedAttributes: { "*": ["class"], th: ["colspan","rowspan"], td: ["colspan","rowspan"] },
+    allowedClasses: { "*": ["lead","subtitle","subhead","emph","check","dataTable","dataTableWrap"] },
+    allowedSchemes: [],
+  });
 }
 
 function editorialSupplement(row: SectionRow) {
@@ -145,7 +140,7 @@ export function buildReportHtml(args: {
   const { title, subtitle, question, generatedAt, sections, input, narrative, reportCategory = "life" } = args;
   const chapters = reportChapters(sections, reportCategory);
   const formatBirthLine = (v:any) => v ? [
-    (v.year || v.y) && (v.month || v.m) && (v.day || v.d) ? `${v.year || v.y}.${String(v.month || v.m).padStart(2,"0")}.${String(v.day || v.d).padStart(2,"0")} ${(v.calendar_type || v.calendar) === "solar" ? "양력" : "음력"}` : "",
+    (v.year || v.y) && (v.month || v.m) && (v.day || v.d) ? `${v.year || v.y}.${String(v.month || v.m).padStart(2,"0")}.${String(v.day || v.d).padStart(2,"0")} ${(v.calendar_type || v.calendar || v.cal || "solar") === "solar" ? "양력" : (v.calendar_type || v.calendar || v.cal) === "lunarLeap" ? "음력(윤달)" : "음력"}` : "",
     v.gender === "남" || v.gender === "male" ? "남성" : v.gender === "여" || v.gender === "female" ? "여성" : "",
     v.region_name || "",
     v.time_unknown || v.unknown_time ? "출생시간 미상" : (v.hour ?? v.h) != null && String(v.hour ?? v.h) !== "" ? `${String(v.hour ?? v.h).padStart(2,"0")}:${String(v.minute ?? v.mi ?? 0).padStart(2,"0")}` : "",
@@ -198,7 +193,7 @@ body{font-family:"Noto Serif CJK KR","Noto Serif KR","Batang",serif;color:#17171
 </section>
 <section class="prologue"><div class="eyebrow">PROLOGUE</div><div class="pageTitle">프롤로그</div><h1>${esc(prologueTitle)}</h1><p>${esc(prologueBody)}</p><p>${esc(isChild ? "아이를 한 문장으로 규정하지 않고, 실제 생활에서 부모가 관찰하고 바꿀 수 있는 말·환경·루틴으로 이어서 봅니다." : isCouple ? "관계의 차이를 결함으로 고치는 대신, 서로 다른 방식이 한 팀의 역할이 되도록 실제 대화와 생활 규칙까지 이어서 봅니다." : "좋은 시기를 기다리는 데서 끝나지 않고, 그 흐름이 실제 선택과 결과로 남도록 무엇을 준비해야 하는지까지 이어서 봅니다.")}</p></section>
 <section class="questionPage"><div class="eyebrow">${isChild ? "PARENT QUESTION" : isCouple ? "COUPLE QUESTION" : "CURRENT LIFE QUESTION"}</div><h1>${isChild ? "부모의 질문" : isCouple ? "두 사람의 질문" : "현재 고민 요약"}</h1><div class="questionCard">${esc(question || (isChild ? "우리 아이를 어떻게 이해하고 키워야 할까요?" : isCouple ? "우리는 왜 끌리고 왜 부딪히며, 어떻게 하면 오래 잘 지낼 수 있을까요?" : "지금의 인생 흐름과 앞으로의 방향이 궁금합니다."))}</div><p>${esc(narrative?.current_question_thesis || (isChild ? "이 질문은 마지막 챕터에서 아이의 기질·회복·표현·학습 구조를 부모의 실제 행동과 연결해 직접 답합니다." : isCouple ? "이 질문은 마지막 챕터에서 두 사람의 반복 갈등, 사랑의 번역 방식, 현재 흐름과 실제 관계 규칙을 연결해 직접 답합니다." : "이 질문은 마지막 챕터에서 현재 대운과 세운, 실제 실행 기준을 연결해 다시 직접 답합니다."))}</p></section>
-<section class="toc"><div class="eyebrow">CONTENTS</div><h1>목차</h1><div class="tocDesc">${isChild ? "3개 CHAPTER · 50개 SECTION으로 아이의 사주 구조부터 실제 양육 전략까지 이어집니다." : isCouple ? "3개 CHAPTER · 50개 SECTION으로 두 사람의 구조, 반복되는 관계 패턴, 실제 대화와 장기 관계 전략까지 이어집니다." : "3개 CHAPTER · 50개 SECTION으로 원국의 구조부터 현재 질문의 답까지 순서대로 이어집니다."}</div>${buildToc(sections, chapters)}</section>
+<section class="toc"><div class="eyebrow">CONTENTS</div><h1>목차</h1><div class="tocDesc">${isChild ? `${chapters.length}개 CHAPTER · ${sections.length}개 SECTION으로 아이의 사주 구조부터 실제 양육 전략까지 이어집니다.` : isCouple ? `${chapters.length}개 CHAPTER · ${sections.length}개 SECTION으로 두 사람의 구조, 반복되는 관계 패턴, 실제 대화와 장기 관계 전략까지 이어집니다.` : `${chapters.length}개 CHAPTER · ${sections.length}개 SECTION으로 원국의 구조부터 현재 질문의 답까지 순서대로 이어집니다.`}</div>${buildToc(sections, chapters)}</section>
 ${chapterBlocks(sections, narrative, chapters, reportCategory)}
 <div class="footerNote">${esc(isChild ? "본 리포트는 전통 명리학적 해석을 바탕으로 한 부모용 참고 자료입니다. 아이를 규정하거나 진단하기 위한 자료가 아니며, 실제 발달·교육·건강과 관련된 중요한 판단은 아이의 현재 상태와 관련 전문가의 검토를 함께 고려하시기 바랍니다." : isCouple ? "본 리포트는 전통 명리학적 해석을 바탕으로 두 사람의 관계를 이해하기 위한 참고 자료입니다. 관계의 중요한 결정은 실제 대화와 생활 조건을 함께 고려하시고, 갈등이나 어려움이 깊다면 관계·심리 전문 상담의 도움을 함께 검토하시기 바랍니다." : "본 리포트는 전통 명리학적 해석을 바탕으로 한 자기이해 참고 자료입니다. 건강·투자·법률·세무 등 중요한 결정은 실제 상황과 관련 전문가의 검토를 함께 고려하시기 바랍니다.")}</div>
 </body>
@@ -208,11 +203,19 @@ ${chapterBlocks(sections, narrative, chapters, reportCategory)}
 export async function htmlToPdfBuffer(html: string) {
   const browser = await puppeteer.launch({
     args: chromium.args,
-    executablePath: await chromium.executablePath(),
+    executablePath: process.env.PDF_CHROME_PATH || await chromium.executablePath(),
     headless: true,
   });
   try {
     const page = await browser.newPage();
+    await page.setJavaScriptEnabled(false);
+    await page.setRequestInterception(true);
+    page.on("request", request => {
+      const url = request.url();
+      const trustedFont = (request.resourceType() === "stylesheet" && url.startsWith("https://fonts.googleapis.com/css2?")) || (request.resourceType() === "font" && url.startsWith("https://fonts.gstatic.com/"));
+      if (trustedFont || url === "about:blank" || /^data:(?:font\/|application\/(?:font|x-font|vnd.ms-fontobject))/.test(url)) void request.continue();
+      else void request.abort();
+    });
     await page.setContent(html, { waitUntil: "load", timeout: 90000 });
     await page.evaluate(async () => {
       // @ts-ignore

@@ -156,8 +156,18 @@ function saeunTimeline(S,years){const il=CHEONGAN.indexOf(S.ilgan),by=S.birth_so
 function luckSnapshot(S){const now=new Date(),il=CHEONGAN.indexOf(S.ilgan),by=S.birth_solar.year,age=now.getUTCFullYear()-by;let ad=null;for(const du of S.daeun)if(du.age_start<=age&&age<=du.age_end){ad=du;break;}return {as_of:now.toISOString().slice(0,10),age,daeun:ad,saeun:annotateLuck(il,saeun(now.getUTCFullYear())),wolun:annotateLuck(il,luckMonthAt(now)),ilun:annotateLuck(il,ilju(now.getUTCFullYear(),now.getUTCMonth()+1,now.getUTCDate()))};}
 
 function calcSaju(by,bm,bd,bh,gender,calMode,bmin,lon,eot,regionName){
+  if(!Number.isInteger(by)||by<1900||by>2100) throw new Error('생년은 1900~2100년 사이의 정수로 입력해 주세요.');
+  if(!Number.isInteger(bm)||bm<1||bm>12||!Number.isInteger(bd)||bd<1||bd>31) throw new Error('올바른 생월과 생일을 입력해 주세요.');
+  if(!['solar','lunar','lunarLeap'].includes(calMode)) throw new Error('달력 종류를 확인해 주세요.');
+  if(!['남','여'].includes(gender)) throw new Error('성별을 선택해 주세요.');
+  if(bh!==null && (!Number.isInteger(bh)||bh<0||bh>23||!Number.isInteger(bmin)||bmin<0||bmin>59)) throw new Error('시간은 0~23시, 분은 0~59분으로 입력해 주세요.');
+  if(lon!=null && (!Number.isFinite(lon)||lon<124||lon>132)) throw new Error('지원하는 국내 출생 지역을 선택해 주세요.');
+  if(calMode==='solar' && new Date(Date.UTC(by,bm-1,bd)).getUTCMonth()!==bm-1) throw new Error('달력에 없는 날짜입니다. 생년월일을 확인해 주세요.');
+
   let Y=by,m=bm,d=bd;const isLunar=calMode!=='solar',isLeap=calMode==='lunarLeap';
   if(isLunar){const [sy,sm,sd]=jdnToSolar(lunarToJDN(by,bm,bd,isLeap));Y=sy;m=sm;d=sd;}
+  const today=new Date(Date.now()+9*60*60*1000).toISOString().slice(0,10);
+  if(`${Y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`>today) throw new Error('미래의 날짜는 출생일로 사용할 수 없습니다.');
   let birthTime=null,effMin=null,calcH=bh===null?12:bh,calcMi=bh===null?0:(bmin||0);
   if(bh!==null){const ei=effectiveInfo(Y,m,d,bh,calcMi,lon,eot);effMin=ei.minutes;birthTime={hour:bh,minute:calcMi,true_solar:(lon!=null||!!eot),effective_minutes:effMin,effective_hm:`${String(Math.floor(effMin/60)).padStart(2,'0')}:${String(effMin%60).padStart(2,'0')}`,correction_minutes:ei.correction,region:regionName||null,longitude:lon};calcH=Math.floor(effMin/60);calcMi=effMin%60;}
   const year=yearPillarExact(Y,m,d,calcH,calcMi),month=monthPillarExact(CHEONGAN.indexOf(year.gan),Y,m,d,calcH,calcMi),day=ilju(Y,m,d),hour=hourPillar(CHEONGAN.indexOf(day.gan),effMin);

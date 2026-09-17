@@ -1,3 +1,7 @@
+import { normalizeBirthInput, validateBirthInput, sameBirthInput, assertOwnedReference } from "@/lib/birth-input";
+import { claimGeneration, releaseGeneration, workerHeaders, validWorker } from "@/lib/generation-lock";
+import { reportState } from "@/lib/report-state";
+import { isDeepStrictEqual } from "node:util";
 import { NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calcSaju, calcLuckData } from "@/lib/saju-engine";
@@ -29,7 +33,6 @@ const OPENAI_TIMEOUT_MS = 75_000;
 // 새 작업을 시작하는 시간 한도. 한 SECTION이 생성+재작성까지 최악의 경우 약 150초 걸릴 수 있어
 // Vercel 300초 제한 안에 안전하게 끝나도록 110초까지만 새 작업을 투입한다.
 const WORK_START_CUTOFF_MS = 110_000;
-const BACKGROUND_STALE_MS = 4 * 60 * 1000;
 const DEFAULT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-luna";
 const CURRENT_FLOW_YEAR = Number(process.env.REPORT_FLOW_YEAR || new Date().getFullYear());
 
@@ -49,28 +52,7 @@ function toNumber(v: any, fallback: number | null = null) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function normalizeInput(raw: any) {
-  const calendar = raw.calendar_type || raw.calendar || raw.cal || "solar";
-  const genderRaw = raw.gender || raw.g || "";
-  const gender = genderRaw === "male" || genderRaw === "남" ? "남" : genderRaw === "female" || genderRaw === "여" ? "여" : "";
-  const regionName = raw.region_name || raw.regionName || raw.region_text || null;
-  const longitude = toNumber(raw.longitude ?? raw.region, null);
-  const timeUnknown = raw.unknown_time === true || raw.time_unknown === true || raw.unknown_time === "true";
-  return {
-    year: toNumber(raw.y ?? raw.year),
-    month: toNumber(raw.m ?? raw.month),
-    day: toNumber(raw.d ?? raw.day),
-    hour: timeUnknown ? null : toNumber(raw.h ?? raw.hour),
-    minute: timeUnknown ? 0 : (toNumber(raw.mi ?? raw.minute, 0) || 0),
-    calendar_type: calendar,
-    gender,
-    time_unknown: timeUnknown,
-    longitude,
-    region_name: regionName,
-    question: String(raw.question || "").trim(),
-    category: String(raw.qcat || raw.category || "").trim(),
-  };
-}
+const normalizeInput = normalizeBirthInput;
 
 function currentDaeun(calc: any) {
   const currentAge = new Date().getFullYear() - Number(calc?.birth_solar?.year || 0);
@@ -83,7 +65,7 @@ function pillarText(p: any) {
 
 function calcContext(calc: any, input: any) {
   const p = calc?.saju || {};
-  const luck = calcLuckData(calc, CURRENT_FLOW_YEAR);
+  const luck = calcLuckData(calc, input.target_year || CURRENT_FLOW_YEAR);
   return {
     identity: {
       birth_input: {
@@ -402,6 +384,11 @@ async function rewriteSection(args: {
 }
 
 async function ensureInitialized(sb: any, order: any, input: any, config: ReportCategoryConfig) {
+  const validatedCalculation = validateBirthInput(input).calculation;
+  if (order.user_id) {
+    await assertOwnedReference(sb, "birth_profiles", order.birth_profile_id, order.user_id);
+    await assertOwnedReference(sb, "questions", order.question_id, order.user_id);
+  }
   let birthProfileId = order.birth_profile_id;
   let questionId = order.question_id;
 
@@ -443,12 +430,13 @@ async function ensureInitialized(sb: any, order: any, input: any, config: Report
   }
 
   let { data: calcRow } = await sb.from("saju_calculations")
-    .select("id,calculation_json")
+    .select("id,calculation_json,input_json,engine_version")
     .eq("birth_profile_id", birthProfileId)
     .order("calculated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
+  if (calcRow && (calcRow.engine_version !== "manse-v3-deterministic" || !sameBirthInput(calcRow.input_json, input) || !isDeepStrictEqual(calcRow.calculation_json, validatedCalculation))) calcRow = null;
   if (!calcRow) {
     const calculation = calcSaju(
       input.year,
@@ -470,16 +458,16 @@ async function ensureInitialized(sb: any, order: any, input: any, config: Report
       calculation_json: calculation,
       raw_time_candidate_json: calculation.raw_time_candidate || null,
       correction_policy: input.time_unknown ? "none" : "longitude+equation_of_time",
-    }).select("id,calculation_json").single();
+    }).select("id,calculation_json,input_json,engine_version").single();
     if (error) {
       // Another request may have inserted the same deterministic calculation first.
       const { data: existing } = await sb.from("saju_calculations")
-        .select("id,calculation_json")
+        .select("id,calculation_json,input_json,engine_version")
         .eq("birth_profile_id", birthProfileId)
         .order("calculated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (!existing) throw new Error("CALC_CREATE_FAILED:" + error.message);
+      if (!existing || !sameBirthInput(existing.input_json, input) || !isDeepStrictEqual(existing.calculation_json, validatedCalculation)) throw new Error("CALC_CREATE_FAILED:" + error.message);
       calcRow = existing;
     } else calcRow = c;
   }
@@ -542,12 +530,14 @@ async function ensurePartnerInitialized(sb: any, order: any, primaryProfileId: s
     const { data: profile, error } = await q.maybeSingle();
     if (error || !profile) throw new Error("PARTNER_PROFILE_NOT_FOUND");
     if (String(profile.id) === String(primaryProfileId)) throw new Error("PARTNER_PROFILE_MUST_DIFFER");
-    partnerInput = inputFromBirthProfile(profile);
+    partnerInput = payload.partner_input ? normalizeInput(payload.partner_input) : inputFromBirthProfile(profile);
+    validateBirthInput(partnerInput);
     if (!partnerInput.year || !partnerInput.month || !partnerInput.day) throw new Error("PARTNER_BIRTH_DATE_MISSING");
     if (!partnerInput.gender) throw new Error("PARTNER_GENDER_MISSING");
   } else {
     const rawPartner = payload.partner_input || payload.guest_input?.partner_input || payload.guest_input?.partner || null;
     partnerInput = normalizeInput(rawPartner || {});
+    validateBirthInput(partnerInput);
     if (!partnerInput.year || !partnerInput.month || !partnerInput.day) throw new Error("PARTNER_BIRTH_DATE_MISSING");
     if (!partnerInput.gender) throw new Error("PARTNER_GENDER_MISSING");
     const birthDate = `${String(partnerInput.year).padStart(4,"0")}-${String(partnerInput.month).padStart(2,"0")}-${String(partnerInput.day).padStart(2,"0")}`;
@@ -572,12 +562,13 @@ async function ensurePartnerInitialized(sb: any, order: any, primaryProfileId: s
   }
 
   let { data: calcRow } = await sb.from("saju_calculations")
-    .select("id,calculation_json")
+    .select("id,calculation_json,input_json,engine_version")
     .eq("birth_profile_id", partnerProfileId)
     .order("calculated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
+  if (calcRow && (calcRow.engine_version !== "manse-v3-deterministic" || !sameBirthInput(calcRow.input_json, partnerInput) || !isDeepStrictEqual(calcRow.calculation_json, validateBirthInput(partnerInput).calculation))) calcRow = null;
   if (!calcRow) {
     const calculation = calcSaju(
       partnerInput.year, partnerInput.month, partnerInput.day,
@@ -595,7 +586,7 @@ async function ensurePartnerInitialized(sb: any, order: any, primaryProfileId: s
       calculation_json: calculation,
       raw_time_candidate_json: calculation.raw_time_candidate || null,
       correction_policy: partnerInput.time_unknown ? "none" : "longitude+equation_of_time",
-    }).select("id,calculation_json").single();
+    }).select("id,calculation_json,input_json,engine_version").single();
     if (error || !c) throw new Error("PARTNER_CALC_CREATE_FAILED:" + (error?.message || "NO_CALC"));
     calcRow = c;
   }
@@ -603,39 +594,10 @@ async function ensurePartnerInitialized(sb: any, order: any, primaryProfileId: s
 }
 
 async function resetLegacyReportIfNeeded(sb: any, report: any, config: ReportCategoryConfig) {
-  if (report.prompt_version === config.version) return report;
-  const oldJson: any = report.report_json || {};
-  if (oldJson.pdf_storage_path) {
-    await sb.storage.from("report-pdfs").remove([oldJson.pdf_storage_path]).catch(() => null);
-  }
-  await sb.from("report_sections").delete().eq("report_id", report.id);
-  const resetJson = {
-    ...oldJson,
-    report_category: config.key,
-    report_slug: config.slug,
-    report_subtitle: config.subtitle,
-    total_sections: config.outline.length,
-    completed_sections: 0,
-    progress: 12,
-    phase: "calculation_done",
-    pdf_ready: false,
-    pdf_storage_path: null,
-    pdf_size: null,
-    pdf_generated_at: null,
-    pdf_renderer_version: null,
-    narrative: null,
-    migrated_from: report.prompt_version || "legacy",
-  };
-  const { data: updated, error } = await sb.from("reports").update({
-    status: "generating",
-    generated_at: null,
-    report_json: resetJson,
-    generation_model: DEFAULT_MODEL,
-    prompt_version: config.version,
-    error_message: null,
-  }).eq("id", report.id).select("*").single();
-  if (error) throw new Error("REPORT_VERSION_RESET_FAILED:" + error.message);
-  return updated;
+  // Viewing an existing purchase must never destroy its PDF or text.
+  if (reportState(report, null).ready || report.prompt_version === config.version) return report;
+  // Preserve interrupted older editions too. A migration needs a separate reviewed revision.
+  throw new Error("LEGACY_REPORT_REVIEW_REQUIRED");
 }
 
 function qualityCandidateFromRow(row: any): QualityCandidate {
@@ -665,7 +627,7 @@ async function kickWorker(generateUrl: string, token: string) {
   try {
     const resp = await fetch(generateUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-report-worker": "1" },
+      headers: { "Content-Type": "application/json", ...workerHeaders(token) },
       body: JSON.stringify({ token, internal: true }),
       cache: "no-store",
     });
@@ -815,6 +777,7 @@ async function updateProgressNow(sb: any, reportId: string, narrative: any, conf
     },
     generation_model: DEFAULT_MODEL,
     prompt_version: config.version,
+    error_message: null,
   }).eq("id", reportId);
   return { completed, done, progress };
 }
@@ -826,12 +789,27 @@ async function runGenerationSlice(token: string, requestUrl: string) {
   const startedAt = Date.now();
   const failures: string[] = [];
   let acceptedCount = 0;
+  let heldOrder: any = null;
+  let lease: any = null;
+  let continueWork = false;
 
   try {
     const order = await loadOrderForToken(sb, token);
-    const config = getReportCategoryConfig(order.products);
-    const rawInput = (order.payment_payload as any)?.guest_input || {};
+    lease = await claimGeneration(sb, order);
+    if (!lease) return;
+    heldOrder = order;
+    const { data: purchased } = await sb.from("reports").select("*").eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (reportState(purchased, order.products).ready) return;
+    if (purchased && purchased.prompt_version !== getReportCategoryConfig(order.products).version) throw new Error("LEGACY_REPORT_REVIEW_REQUIRED");
+    let config = getReportCategoryConfig(order.products);
+    const rawInput = { ...((order.payment_payload as any)?.guest_input || {}), target_year: (order.payment_payload as any)?.guest_input?.target_year || (config.key === "new_year" ? 2027 : CURRENT_FLOW_YEAR) };
     const input = normalizeInput(rawInput);
+    if (config.key === "new_year") config = {
+      ...config,
+      title: `${input.target_year}년 신년 운세 리포트`,
+      subtitle: `${input.target_year}년의 전체 흐름과 12개월 변화, 실행 기준을 연결한 개인맞춤 신년 리포트`,
+      focus: `${config.focus} 이 주문의 분석 대상은 ${input.target_year}년이다. 본문의 올해는 모두 이 대상 연도를 뜻하며 생성 시점의 연도와 혼동하지 않는다.`,
+    };
     const init = await ensureInitialized(sb, order, input, config);
     let report = await resetLegacyReportIfNeeded(sb, init.report, config);
     let currentJson: any = report.report_json || {};
@@ -839,6 +817,9 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
       return;
     }
+
+    currentJson = { ...currentJson, background_running: true, background_heartbeat_at: Date.now(), background_last_error: null };
+    await sb.from("reports").update({ report_json: currentJson, error_message: null }).eq("id", report.id);
 
     const primaryCtx = calcContext(init.calcRow.calculation_json, input);
     let partnerInit: any = null;
@@ -930,7 +911,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     if (!missing.length) {
       const finalRepair = await repairCoupleFinalAuditIfNeeded(sb, report, config, narrative, currentJson);
       if (finalRepair.repaired) {
-        await kickWorker(generateUrl, token);
+        continueWork = true;
         return;
       }
       await updateProgressNow(sb, report.id, narrative, config, { background_last_error: null });
@@ -1196,7 +1177,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     if (state.done) {
       const finalRepair = await repairCoupleFinalAuditIfNeeded(sb, report, config, narrative, currentJson);
       if (finalRepair.repaired) {
-        await kickWorker(generateUrl, token);
+        continueWork = true;
         return;
       }
       const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
@@ -1233,7 +1214,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     if (noProgressCount < 6) {
       // 다음 invocation은 즉시 202를 반환하고 자체 after()에서 다음 slice를 실행한다.
       // 따라서 현재 invocation이 자식 작업 완료까지 기다리면서 300초를 초과하지 않는다.
-      await kickWorker(generateUrl, token);
+      continueWork = true;
     }
   } catch (e: any) {
     console.error("REPORT_BACKGROUND_SLICE_ERROR", e);
@@ -1256,100 +1237,31 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       console.error("REPORT_BACKGROUND_ERROR_SAVE_FAILED", inner);
     }
   }
+  finally {
+    if (heldOrder && lease) await releaseGeneration(sb, heldOrder.id, lease.id);
+    if (continueWork) await kickWorker(generateUrl, token);
+  }
 }
 
 export async function POST(req: Request) {
-  const sb = admin();
   try {
     const body = await req.json().catch(() => ({}));
     const token = String(body?.token || "").trim();
-    const internal = body?.internal === true;
-    const background = body?.background === true;
     if (!/^[0-9a-fA-F-]{36}$/.test(token)) return J({ ok: false, error: "INVALID_TOKEN" }, 400);
-
-    if (internal) {
-      if (req.headers.get("x-report-worker") !== "1") return J({ ok: false, error: "WORKER_ONLY" }, 403);
-      // 중요: 내부 체인 호출은 오래 일하지 않고 즉시 202를 반환한다.
-      // 실제 12병렬 작업은 이 invocation의 after()에서 실행되므로 부모 self-fetch가 자식 완료를 기다리지 않는다.
-      after(async () => {
-        await runGenerationSlice(token, req.url);
-      });
-      return J({ ok: true, status: "worker_accepted" }, 202);
-    }
-
+    if (body.internal === true && !validWorker(req, token)) return J({ ok: false, error: "WORKER_ONLY" }, 403);
+    const sb = admin();
     const order = await loadOrderForToken(sb, token);
-    const config = getReportCategoryConfig(order.products);
-    const rawInput = (order.payment_payload as any)?.guest_input || {};
-    const input = normalizeInput(rawInput);
-    const init = await ensureInitialized(sb, order, input, config);
-    const report = await resetLegacyReportIfNeeded(sb, init.report, config);
-    const currentJson: any = report.report_json || {};
-
-    if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
-      return J({
-        ok: true,
-        status: "completed",
-        progress: 100,
-        completed_sections: config.outline.length,
-        total_sections: config.outline.length,
-        report_id: report.id,
-        pdf_ready: true,
-      });
-    }
-
-    const totalSections = config.outline.length;
-    const completed = await sectionCount(sb, report.id, totalSections);
-    const progress = Math.min(95, Math.max(Number(currentJson.progress || 12), Math.round(24 + (completed / totalSections) * 70)));
-
-    if (background) {
-      const heartbeatAt = Number(currentJson.background_heartbeat_at || currentJson.background_started_at || 0);
-      const stillRunning = currentJson.background_running === true && (Date.now() - heartbeatAt) < BACKGROUND_STALE_MS;
-
-      if (!stillRunning) {
-        const nextJson = {
-          ...currentJson,
-          total_sections: config.outline.length,
-          completed_sections: completed,
-          progress,
-          background_running: true,
-          background_started_at: Date.now(),
-          background_heartbeat_at: Date.now(),
-          background_last_error: null,
-          background_no_progress_count: 0,
-        };
-        await sb.from("reports").update({ report_json: nextJson, error_message: null }).eq("id", report.id);
-        const generateUrl = new URL("/api/report/generate", req.url).toString();
-        after(async () => {
-          await kickWorker(generateUrl, token);
-        });
-      }
-
-      return J({
-        ok: true,
-        status: stillRunning ? "background_running" : "background_started",
-        progress,
-        completed_sections: completed,
-        total_sections: config.outline.length,
-        report_id: report.id,
-        pdf_ready: currentJson.pdf_ready === true,
-      }, 202);
-    }
-
-    // 상태 조회 성격으로 POST가 들어와도 생성 자체는 브라우저가 담당하지 않는다.
-    return J({
-      ok: true,
-      status: currentJson.pdf_ready === true ? "completed" : "generating",
-      progress,
-      completed_sections: completed,
-      total_sections: config.outline.length,
-      report_id: report.id,
-      pdf_ready: currentJson.pdf_ready === true,
-      phase: currentJson.phase || "writing",
-    });
+    const { data: report, error } = await sb.from("reports").select("*").eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw new Error("REPORT_LOOKUP_FAILED");
+    const state = reportState(report, order.products);
+    if (state.ready) return J({ ok: true, status: "completed", progress: 100, completed_sections: state.completed, total_sections: state.total, pdf_ready: true });
+    if (report && report.prompt_version !== getReportCategoryConfig(order.products).version) return J({ ok: false, error: "LEGACY_REPORT_REVIEW_REQUIRED", detail: "기존 리포트는 보존되어 있습니다. 이전 버전의 생성 복구는 고객센터로 문의해 주세요." }, 409);
+    if (body.background === true || body.internal === true) after(() => runGenerationSlice(token, req.url));
+    return J({ ok: true, status: "generating", completed_sections: state.completed, total_sections: state.total, pdf_ready: false }, 202);
   } catch (e: any) {
-    console.error("REPORT_GENERATE_ERROR", e);
-    const code = e?.message === "ORDER_NOT_FOUND" ? 404 : e?.message === "ORDER_NOT_PAID" ? 409 : 500;
-    return J({ ok: false, error: "REPORT_GENERATION_FAILED", detail: e?.message || String(e) }, code);
+    const status = e.message === "ORDER_NOT_FOUND" ? 404 : e.message === "ORDER_NOT_PAID" ? 409 : 500;
+    console.error("REPORT_GENERATE_ERROR", e.message);
+    return J({ ok: false, error: "REPORT_GENERATION_FAILED", detail: e.message }, status);
   }
 }
 

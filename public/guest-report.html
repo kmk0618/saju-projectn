@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
 <title>나의 리포트 · 나의사주</title>
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="shortcut icon" href="/favicon.png">
@@ -49,6 +50,11 @@ let generationStartRequested=false;
 let currentName='종합 인생 리포트';
 let isTest=false;
 let stopped=false;
+let startAttempts=0;
+let lastStartAt=0;
+let nextStartAt=0;
+let retryPrompted=false;
+let pdfAttempts=0;
 
 function esc(s){
   return String(s??'').replace(/[&<>"']/g,c=>({
@@ -79,7 +85,7 @@ function renderProgress(pct,completed,total,phase){
   }else if(pct<42){
     label='핵심 분석 중';
     stageIndex=2;
-  }else if(phase==='pdf_queued' || phase==='pdf_generating' || completed>=50){
+  }else if(phase==='pdf_queued' || phase==='pdf_generating' || completed>=total){
     label='PDF 제작 중';
     stageIndex=4;
   }
@@ -155,7 +161,7 @@ function showError(message){
 }
 
 async function getState(){
-  const r=await fetch('/api/guest-order?token='+encodeURIComponent(token),{
+  const r=await fetch('/api/guest-order?status_only=1&token='+encodeURIComponent(token),{
     cache:'no-store'
   });
 
@@ -183,14 +189,18 @@ async function ensurePdf(){
   let d=null;
   try{ d=raw?JSON.parse(raw):null; }catch{}
 
-  throw new Error((d?.error||'PDF 생성 실패')+(d?.detail?' : '+d.detail:''));
+  const error=new Error((d?.error||'PDF 생성 실패')+(d?.detail?' : '+d.detail:''));
+  error.code=d?.error;
+  throw error;
 }
 
 async function launchParallelGeneration(){
-  if(generateInFlight || generationStartRequested || stopped) return;
+  if(generateInFlight || generationStartRequested || stopped || retryPrompted || Date.now()<nextStartAt) return;
 
   generateInFlight=true;
   generationStartRequested=true;
+  startAttempts++;
+  lastStartAt=Date.now();
 
   try{
     const r=await fetch('/api/report/generate',{
@@ -208,15 +218,25 @@ async function launchParallelGeneration(){
       throw new Error((d?.error||'리포트 생성 시작 실패')+(d?.detail?' : '+d.detail:''));
     }
   }catch(e){
+    generationStartRequested=false;
+    nextStartAt=Date.now()+10000;
     console.error('[BACKGROUND REPORT START]',e);
     showError(e.message||String(e));
-    setTimeout(()=>{ generationStartRequested=false; launchParallelGeneration(); },10000);
+    if(startAttempts>=3)showRetry();
   }finally{
     generateInFlight=false;
   }
 }
 
+function showRetry(){
+  retryPrompted=true;
+  const box=document.getElementById('runtimeError')||app;
+  box.innerHTML='<div class="err">생성을 계속하지 못했습니다. 기존 내용은 보존되어 있습니다. 잠시 후 다시 시도하거나 고객센터로 문의해 주세요.<br><button id="retryGeneration">생성 다시 시도</button></div>';
+  document.getElementById('retryGeneration').onclick=()=>{startAttempts=0;pdfAttempts=0;nextStartAt=0;retryPrompted=false;generationStartRequested=false;launchParallelGeneration();setTimeout(poll,5000);};
+}
 async function poll(){
+  if(stopped || retryPrompted)return;
+  if(document.hidden){setTimeout(poll,15000);return;}
   if(!token){
     app.innerHTML='<div class="err">열람 토큰이 없습니다.</div>';
     return;
@@ -231,28 +251,25 @@ async function poll(){
     currentName=o.product?.name||'종합 인생 리포트';
     isTest=!!o.is_test;
 
-    const currentEngine=String(rep?.prompt_version||'').startsWith('life-report-aqua-50');
-    const completed=currentEngine ? Number(j.completed_sections ?? d.sections?.length ?? 0) : 0;
-    const total=50;
-    const pdfReady=
-      currentEngine &&
-      rep?.status==='completed' &&
-      !!j.pdf_storage_path &&
-      j.pdf_ready!==false;
+    const completed=d.state?.completed||0;
+    const total=d.state?.total||50;
+    const pdfReady=d.state?.ready===true;
 
     if(pdfReady){
       renderDone();
       return;
     }
 
-    if(completed>=50){
-      renderProgress(97,50,50,j.phase||'pdf_queued');
+    if(completed>=total){
+      renderProgress(97,completed,total,j.phase||'pdf_queued');
 
       try{
         await ensurePdf();
         setTimeout(poll,500);
       }catch(e){
+        if(e.code!=='PDF_IN_PROGRESS')pdfAttempts++;
         showError(e.message||String(e));
+        if(pdfAttempts>=3){showRetry();return;}
         setTimeout(poll,5000);
       }
       return;
@@ -262,16 +279,19 @@ async function poll(){
       12,
       Math.min(
         95,
-        Number(j.progress || Math.round(18 + (completed/50)*77))
+        Number(j.progress || Math.round(18 + (completed/total)*77))
       )
     );
 
     renderProgress(pct,completed,total,j.phase||'');
 
-    // 한 번만 백그라운드 작업을 시작하고, 이후에는 상태만 조회한다.
+    if(d.state?.status==='failed'){showRetry();return;}
+    const heartbeat=Number(j.background_heartbeat_at||j.background_started_at||lastStartAt);
+    if(generationStartRequested && Date.now()-heartbeat>6*60*1000)generationStartRequested=false;
+    if(!generationStartRequested && startAttempts>=3){showRetry();return;}
     launchParallelGeneration();
 
-    setTimeout(poll,2000);
+    setTimeout(poll,5000);
 
   }catch(e){
     app.innerHTML=shell(false)+`

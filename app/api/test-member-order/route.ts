@@ -32,6 +32,7 @@ export async function GET(){
 }
 
 export async function POST(req:Request){
+  if (process.env.NODE_ENV === "production" || process.env.ENABLE_TEST_ORDERS !== "true") return J({ok:false,error:"TEST_ORDERS_DISABLED"},404);
   try{
     const authHeader=req.headers.get("authorization")||"";
     const accessToken=authHeader.startsWith("Bearer ")

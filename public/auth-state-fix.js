@@ -7,17 +7,8 @@
     return;
   }
 
-  const authUiSupabase = window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    }
-  );
+  const authUiSupabase = window.sajuSupabase;
+  if(!authUiSupabase)return;
 
   function displayName(user) {
     if (!user) return "회원";

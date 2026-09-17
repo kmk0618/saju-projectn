@@ -1,3 +1,4 @@
+import { reportState } from "@/lib/report-state";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -83,6 +84,7 @@ export async function GET(req: Request) {
         title,
         status,
         summary,
+        error_message,
         report_json,
         generation_model,
         prompt_version,
@@ -100,7 +102,7 @@ export async function GET(req: Request) {
 
     let sections: any[] = [];
 
-    if (report?.id) {
+    if (report?.id && url.searchParams.get("status_only") !== "1") {
       const { data: sectionRows, error: sectionError } = await supabase
         .from("report_sections")
         .select(`
@@ -157,9 +159,17 @@ export async function GET(req: Request) {
           region_name: input.region_name ?? input.regionName ?? "",
         },
       },
-      report: report || null,
+      state: reportState(report, product),
+      report: url.searchParams.get("status_only") === "1" && report ? {
+        status: report.status, error_message: report.error_message,
+        report_json: { progress: report.report_json?.progress, phase: report.report_json?.phase,
+          background_running: report.report_json?.background_running,
+          background_heartbeat_at: report.report_json?.background_heartbeat_at,
+          background_started_at: report.report_json?.background_started_at,
+          background_no_progress_count: report.report_json?.background_no_progress_count }
+      } : report || null,
       sections,
-    });
+    }, { headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" } });
   } catch (error) {
     console.error(error);
     return NextResponse.json(

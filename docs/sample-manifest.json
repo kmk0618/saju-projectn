@@ -1,0 +1,54 @@
+[
+  {
+    "category": "life",
+    "source_pages": 90,
+    "selected_pages": [
+      1,
+      8,
+      32,
+      55,
+      83
+    ],
+    "public_pdf": "/samples/life/preview.pdf",
+    "raster_only": true
+  },
+  {
+    "category": "child",
+    "source_pages": 93,
+    "selected_pages": [
+      1,
+      9,
+      30,
+      56,
+      87
+    ],
+    "public_pdf": "/samples/child/preview.pdf",
+    "raster_only": true
+  },
+  {
+    "category": "couple",
+    "source_pages": 90,
+    "selected_pages": [
+      1,
+      5,
+      26,
+      52,
+      84
+    ],
+    "public_pdf": "/samples/couple/preview.pdf",
+    "raster_only": true
+  },
+  {
+    "category": "new-year",
+    "source_pages": 28,
+    "selected_pages": [
+      1,
+      4,
+      10,
+      18,
+      24
+    ],
+    "public_pdf": "/samples/new-year/preview.pdf",
+    "raster_only": true
+  }
+]

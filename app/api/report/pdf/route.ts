@@ -38,6 +38,8 @@ async function loadOrderReport(sb: any, token: string) {
 
 async function ensurePdf(sb: any, order: any, report: any) {
   const rj: any = report.report_json || {};
+  if (rj.pdf_storage_path && rj.pdf_ready !== false) return { path: rj.pdf_storage_path, size: rj.pdf_size || null };
+  if (Number(rj.pdf_lease_until) > Date.now()) throw new Error("PDF_IN_PROGRESS");
   const totalSections = Number(rj.total_sections || 0);
   if (!totalSections) throw new Error("PDF_REPORT_SPEC_MISSING");
   if (rj.pdf_storage_path && rj.pdf_ready !== false && rj.pdf_renderer_version === PDF_RENDERER_VERSION) return { path:rj.pdf_storage_path, size:rj.pdf_size || null };
@@ -74,11 +76,13 @@ async function ensurePdf(sb: any, order: any, report: any) {
     }
   }
 
-  await sb.from("reports").update({
+  const { data: claimed, error: claimError } = await sb.from("reports").update({
     status:"generating",
-    report_json:{ ...rj, total_sections:totalSections, completed_sections:totalSections, progress:97, phase:"pdf_generating", pdf_ready:false },
+    report_json:{ ...rj, total_sections:totalSections, completed_sections:totalSections, progress:97, phase:"pdf_generating", pdf_ready:false, pdf_lease_until: Date.now() + 6 * 60 * 1000 },
     error_message:null,
-  }).eq("id", report.id);
+  }).eq("id", report.id).eq("report_json", JSON.stringify(rj)).select("id").maybeSingle();
+  if (claimError) throw new Error("PDF_LOCK_FAILED");
+  if (!claimed) throw new Error("PDF_IN_PROGRESS");
 
   const input = {
     ...(order.payment_payload?.guest_input || {}),
@@ -111,6 +115,7 @@ async function ensurePdf(sb: any, order: any, report: any) {
     pdf_size:pdf.length,
     pdf_generated_at:new Date().toISOString(),
     pdf_renderer_version:PDF_RENDERER_VERSION,
+    pdf_lease_until:null,
   };
   const { error: updateError } = await sb.from("reports").update({
     status:"completed",
@@ -144,13 +149,15 @@ export async function GET(req: Request) {
       "Content-Disposition":`${download ? "attachment" : "inline"}; filename*=UTF-8''${encoded}`,
       "Cache-Control":"private, no-store, max-age=0",
       "X-Content-Type-Options":"nosniff",
+      "Referrer-Policy":"no-referrer",
+      "X-Robots-Tag":"noindex, nofollow",
     }});
   } catch (e:any) {
     console.error("REPORT_PDF_ERROR", e);
     const msg = e?.message || String(e);
     let status = 500;
     if (msg === "ORDER_NOT_FOUND" || msg === "REPORT_NOT_FOUND") status = 404;
-    else if (msg === "ORDER_NOT_PAID" || msg.startsWith("PDF_NOT_READY:")) status = 409;
+    else if (msg === "ORDER_NOT_PAID" || msg === "PDF_IN_PROGRESS" || msg.startsWith("PDF_NOT_READY:")) status = 409;
     return NextResponse.json({ ok:false, error:msg.split(":")[0], detail:msg }, { status });
   }
 }

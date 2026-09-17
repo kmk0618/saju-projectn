@@ -1,3 +1,5 @@
+import { validateBirthInput, assertOwnedReference } from "@/lib/birth-input";
+import { getReportCategoryConfig } from "@/lib/report-categories";
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getPortOneV1PublicConfig } from "@/lib/portone";
 
@@ -55,7 +57,22 @@ export async function POST(req: Request) {
     }
 
     const merchantUid = `saju-${crypto.randomUUID()}`;
-    const input = body.input && typeof body.input === "object" ? body.input : {};
+    const input = body.input && typeof body.input === "object" ? { ...body.input } : {};
+    const config = getReportCategoryConfig(product);
+    try {
+      validateBirthInput(input);
+      await assertOwnedReference(sb, "birth_profiles", body.birth_profile_id, user?.id || null);
+      await assertOwnedReference(sb, "questions", body.question_id, user?.id || null);
+      await assertOwnedReference(sb, "birth_profiles", body.partner_profile_id, user?.id || null);
+      if (config.requiresSecondProfile) {
+        validateBirthInput(body.partner_input);
+        if (body.birth_profile_id && body.birth_profile_id === body.partner_profile_id) throw new Error("PARTNER_PROFILE_MUST_DIFFER");
+      }
+    } catch (e: any) {
+      return J({ ok: false, error: "INVALID_ORDER_INPUT", detail: e.message }, 400);
+    }
+    // The currently advertised new-year edition is fixed when the order is created.
+    if (config.key === "new_year") input.target_year = 2027;
     const partnerProfileId = user ? (body.partner_profile_id || null) : null;
     const partnerInput = body.partner_input && typeof body.partner_input === "object" ? body.partner_input : null;
 

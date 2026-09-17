@@ -8,20 +8,29 @@
     "start": "next start",
     "lint": "next lint",
     "check:child": "node scripts/verify-child-midlayer.mjs",
-    "check:couple": "node scripts/verify-couple-midlayer.mjs"
+    "check:couple": "node scripts/verify-couple-midlayer.mjs",
+    "check:audit": "node scripts/verify-audit-fixes.mjs",
+    "check": "npm run check:audit && npm run check:child && npm run check:couple && tsc --noEmit --incremental false && npm run lint"
   },
   "dependencies": {
     "@sparticuz/chromium": "^152.0.0",
     "@supabase/supabase-js": "^2.57.4",
-    "next": "^15.5.21",
+    "next": "^15.5.25",
     "puppeteer-core": "^25.10.0",
     "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react-dom": "19.1.1",
+    "sanitize-html": "^2.17.7"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sanitize-html": "^2.16.1",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.25",
     "typescript": "^5.9.2"
+  },
+  "overrides": {
+    "postcss": "^8.5.28"
   }
 }
