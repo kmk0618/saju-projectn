@@ -90,7 +90,7 @@ export async function markOrderPaidFromPortOneV1(
     ...existingPayload,
     test_mode: false,
     charged_amount_krw: actual,
-    listed_amount_krw: expected,
+    listed_amount_krw: existingPayload.listed_amount_krw ?? expected,
     portone_v1: payment,
   };
 

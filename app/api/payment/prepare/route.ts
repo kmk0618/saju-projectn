@@ -1,4 +1,5 @@
 import { validateBirthInput, assertOwnedReference } from "@/lib/birth-input";
+import { couponPricing } from "@/lib/coupon-pricing";
 import { getReportCategoryConfig } from "@/lib/report-categories";
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getPortOneV1PublicConfig } from "@/lib/portone";
@@ -51,10 +52,10 @@ export async function POST(req: Request) {
     if (productError) return J({ ok: false, error: "PRODUCT_LOOKUP_FAILED", detail: productError.message }, 500);
     if (!product) return J({ ok: false, error: "PRODUCT_NOT_FOUND" }, 404);
 
-    const amount = Number(product.price_krw);
-    if (!Number.isInteger(amount) || amount <= 0) {
-      return J({ ok: false, error: "INVALID_PRODUCT_PRICE" }, 500);
-    }
+    let pricing;
+    try { pricing = couponPricing(product, body.coupon_code); }
+    catch (e: any) { return J({ ok: false, error: e.message }, e.message === "INVALID_PRODUCT_PRICE" ? 500 : 400); }
+    const amount = pricing.amount_krw;
 
     const merchantUid = `saju-${crypto.randomUUID()}`;
     const input = body.input && typeof body.input === "object" ? { ...body.input } : {};
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
         payment_payload: {
           test_mode: false,
           merchant_uid: merchantUid,
-          listed_amount_krw: amount,
+          ...pricing,
           guest_input: input,
           partner_profile_id: partnerProfileId,
           partner_input: partnerInput,
@@ -115,6 +116,8 @@ export async function POST(req: Request) {
       order_id: order.id,
       merchant_uid: order.merchant_uid,
       amount_krw: order.amount_krw,
+      discount_krw: pricing.discount_krw,
+      listed_amount_krw: pricing.listed_amount_krw,
       guest_token: order.guest_access_token,
       product: { slug: product.slug, name: product.name, report_type: product.report_type },
       portone: { imp_code: impCode, channel_key: channelKey },

@@ -419,6 +419,12 @@ h1,.product h3,.product .meta{word-break:keep-all;overflow-wrap:break-word}
   </div>
   <div style="font-size:9.8px;line-height:1.55;color:#8a8273;margin-top:8px">궁합은 두 사람의 만세력을 각각 계산한 뒤 교차 분석합니다. 출생시간을 모르면 시간주 해석은 제외됩니다.</div>
 </div>
+<div style="margin:16px 0;padding:14px;border:1px solid #e5dcc1;border-radius:12px;text-align:left">
+  <label for="checkoutCoupon" style="display:block;font-size:12px;font-weight:800;margin-bottom:8px">쿠폰 코드</label>
+  <div style="display:flex;gap:8px"><input id="checkoutCoupon" maxlength="128" autocomplete="off" placeholder="쿠폰 코드 입력" oninput="resetCheckoutCoupon(false)" style="min-width:0;flex:1;padding:10px;border:1px solid #d8ceb5;border-radius:8px"><button type="button" onclick="applyCheckoutCoupon()" style="padding:10px 14px;border:0;border-radius:8px;background:#29271f;color:white">적용</button></div>
+  <p id="couponStatus" role="status" aria-live="polite" style="font-size:12px;line-height:1.6;margin:8px 0"></p>
+  <div style="display:flex;justify-content:space-between;gap:10px;font-size:14px"><span>최종 결제금액</span><strong id="checkoutTotal"></strong></div>
+</div>
 <div id="guestCheckoutBox" style="display:none;margin:14px 0 4px">
   <div style="font-size:11px;font-weight:950;color:#4c4639;margin-bottom:9px">구매 방법을 선택하세요</div>
 
@@ -1109,6 +1115,7 @@ async function openProduct(name,price){
   const user=await getFamilyUser();
   checkoutIsGuest=!user;
   checkoutProduct={...(checkoutProduct||{}),name,price};
+  resetCheckoutCoupon();
   document.getElementById('modalTitle').textContent=name;
   document.getElementById('modalText').innerHTML=checkoutIsGuest
     ? '<b>'+price+'</b><br>회원가입 없이 바로 구매할 수 있습니다.'
@@ -1155,6 +1162,8 @@ async function startCheckout(name,price){
 
 async function confirmCheckout(){
   if(!checkoutProduct)return;
+  let couponCode;
+  try { couponCode=checkoutCouponCode(); } catch(e) { showToast(e.message); return; }
   try { validateCheckoutBirth(collectGuestCheckoutPayload()); } catch(e) { showToast(e.message); return; }
 
   const user=await getFamilyUser();
@@ -1203,6 +1212,7 @@ async function confirmCheckout(){
       body:JSON.stringify({
         guest_email:isGuest?guestEmail:null,
         product_slug:productSlug,
+        coupon_code:couponCode,
         birth_profile_id:checkoutProduct.birth_profile_id||null,
         question_id:checkoutProduct.question_id||null,
         calculation_id:checkoutProduct.calculation_id||null,
@@ -1213,6 +1223,7 @@ async function confirmCheckout(){
     });
     const prep=await prepRes.json().catch(()=>null);
     if(!prepRes.ok||!prep?.ok) throw new Error((prep?.error||'결제 주문 생성 실패')+(prep?.detail?' : '+prep.detail:''));
+    if(couponCode && (!appliedCheckoutCoupon || Number(prep.amount_krw)!==appliedCheckoutCoupon.amount)) throw new Error('결제 금액이 변경되었습니다. 쿠폰을 다시 적용해 주세요.');
 
     try{
       localStorage.setItem('saju_pending_portone_payment',JSON.stringify({
@@ -1718,6 +1729,7 @@ window.addEventListener('focus',()=>setTimeout(loadFamilyProfiles,150));
 <script src="/auth-state-fix.js?v=20260917"></script>
 
 <script src="/accessibility.js"></script>
+<script src="/checkout-coupon.js"></script>
 </body></html>
 
 

@@ -150,6 +150,49 @@ await test('couple checkout rejects invalid second person; new-year target is fi
   assert.equal((await POST(request({product_slug:'new-year',input:{...base,target_year:2099}}))).status,200);
   assert.equal(inserted.payment_payload.guest_input.target_year,2027);
 });
+await test('coupon pricing is server-controlled, expires, and preserves ordinary prices',async()=>{
+  const code='ISOLATED-TEST-CODE';
+  const policy={id:'isolated',codeHash:require('node:crypto').createHash('sha256').update(code).digest('hex'),expiresAt:'2100-01-01T00:00:00Z',amount:1000,slugs:['life-report','child-report','couple-compatibility','new-year']};
+  const local=loader({'@/lib/test-coupon-policy':{TEST_COUPON:policy}});
+  const {couponPricing}=local('lib/coupon-pricing.ts');
+  for(const slug of policy.slugs){
+    const product={slug,price_krw:19000};
+    assert.equal(couponPricing(product,'').amount_krw,19000);
+    assert.equal(couponPricing(product,'  isolated-test-code ').amount_krw,1000);
+    assert.equal(couponPricing(product,code).discount_krw,18000);
+    assert.throws(()=>couponPricing(product,'WRONG'),/INVALID_COUPON/);
+    assert.throws(()=>couponPricing(product,code,Date.parse(policy.expiresAt)),/COUPON_EXPIRED/);
+  }
+  assert.throws(()=>couponPricing({slug:'other',price_krw:19000},code),/NOT_APPLICABLE/);
+  let inserted;
+  const db=fakeDb(q=>{
+    if(q.table==='products') return {data:{id:'product',slug:'life-report',price_krw:19000}};
+    if(q.op==='insert'){inserted=q.value;return {data:{id:'order',amount_krw:q.value.amount_krw}};}
+    return {data:null};
+  });
+  const routes=loader({'@/lib/test-coupon-policy':{TEST_COUPON:policy},'@/lib/portone':{getAdminSupabase:()=>db,getPortOneV1PublicConfig:()=>({})}});
+  const request=(coupon,amount)=>new Request('http://localhost',{method:'POST',body:JSON.stringify({product_slug:'life-report',guest_email:'buyer@example.com',input:base,coupon_code:coupon,amount_krw:amount})});
+  const prepare=routes('app/api/payment/prepare/route.ts').POST;
+  assert.equal((await prepare(request('WRONG',1000))).status,400);assert.equal(inserted,undefined);
+  assert.equal((await prepare(request('',1))).status,200);assert.equal(inserted.amount_krw,19000);
+  assert.equal((await prepare(request(code,1))).status,200);assert.equal(inserted.amount_krw,1000);
+  assert.equal(inserted.status,'pending');assert.equal(inserted.payment_payload.test_mode,false);
+  assert.equal(inserted.payment_payload.listed_amount_krw,19000);assert.equal(inserted.payment_payload.discount_krw,18000);
+  assert.equal(JSON.stringify(inserted).includes(code),false);
+  inserted=undefined;
+  const quote=await routes('app/api/payment/quote/route.ts').POST(request(code,1));
+  assert.equal((await quote.json()).amount_krw,1000);assert.equal(inserted,undefined);
+});
+await test('discounted payments still reject the wrong paid amount and retain the list price',async()=>{
+  let saved;
+  const db=fakeDb(q=>{saved=q.value;return {data:{id:'order'}};});
+  const {markOrderPaidFromPortOneV1}=load('lib/portone.ts');
+  const order={id:'order',merchant_uid:'merchant',amount_krw:1000,payment_payload:{listed_amount_krw:19000,discount_krw:18000,coupon_id:'isolated'}};
+  await assert.rejects(()=>markOrderPaidFromPortOneV1(db,order,{status:'paid',amount:1,merchant_uid:'merchant'}),/AMOUNT_MISMATCH/);
+  assert.equal(saved,undefined);
+  await markOrderPaidFromPortOneV1(db,order,{status:'paid',amount:1000,merchant_uid:'merchant'});
+  assert.equal(saved.payment_payload.listed_amount_krw,19000);assert.equal(saved.payment_payload.charged_amount_krw,1000);
+});
 await test('completed historical PDF is downloaded without regenerating or modifying records',async()=>{
   const db=fakeDb(q=>{
     assert.equal(q.op,'select');
