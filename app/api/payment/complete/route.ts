@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminSupabase, getPortOneV1Payment, markOrderPaidFromPortOneV1 } from "@/lib/portone";
+import { getAdminSupabase, getPortOneV1Payment, getPortOneV1PaymentForOrder, markOrderPaidFromPortOneV1 } from "@/lib/portone";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -20,8 +20,8 @@ export async function POST(req: Request) {
     const merchantUid = String(body.merchant_uid || "").trim();
     const impUid = String(body.imp_uid || "").trim();
     const guestToken = String(body.guest_token || "").trim();
-    if (!orderId || !merchantUid || !impUid) {
-      return J({ ok: false, error: "ORDER_MERCHANT_IMP_REQUIRED" }, 400);
+    if (!orderId || !merchantUid) {
+      return J({ ok: false, error: "ORDER_MERCHANT_REQUIRED" }, 400);
     }
 
     const sb = getAdminSupabase();
@@ -51,7 +51,8 @@ export async function POST(req: Request) {
       return J({ ok: true, already_paid: true, guest_token: order.guest_access_token });
     }
 
-    const payment = await getPortOneV1Payment(impUid);
+    if (order.status !== "pending") return J({ ok: false, error: "ORDER_NOT_PENDING" }, 409);
+    const payment = impUid ? await getPortOneV1Payment(impUid) : await getPortOneV1PaymentForOrder(order.merchant_uid);
     const updated = await markOrderPaidFromPortOneV1(sb, order, payment);
 
     return J({

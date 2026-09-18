@@ -14,15 +14,22 @@ export async function POST(req: Request) {
     }
 
     const sb = getAdminSupabase();
-    const { data: order, error } = await sb
+    const { data: exactOrder, error } = await sb
       .from("orders")
       .select("id,user_id,guest_access_token,guest_email,merchant_uid,amount_krw,status,payment_payload")
       .eq("merchant_uid", merchantUid)
       .maybeSingle();
 
     if (error) return NextResponse.json({ ok: false, error: "ORDER_LOOKUP_FAILED" }, { status: 500 });
+    let order = exactOrder;
+    if (!order && /^saju-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{11}$/.test(merchantUid)) {
+      const { data: matches, error: matchError } = await sb.from("orders").select("id,user_id,guest_access_token,guest_email,merchant_uid,amount_krw,status,payment_payload").like("merchant_uid", `${merchantUid}%`).limit(2);
+      if (matchError || matches?.length !== 1) return NextResponse.json({ ok: false, error: "ORDER_LOOKUP_AMBIGUOUS" }, { status: 409 });
+      order = matches[0];
+    }
     if (!order) return NextResponse.json({ ok: true, ignored: "ORDER_NOT_FOUND" });
     if (order.status === "paid") return NextResponse.json({ ok: true, already_paid: true });
+    if (order.status !== "pending") return NextResponse.json({ ok: true, ignored: "ORDER_NOT_PENDING" });
 
     const payment = await getPortOneV1Payment(impUid);
     if (String(payment.status || "").toLowerCase() !== "paid") {

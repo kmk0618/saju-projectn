@@ -1253,6 +1253,7 @@ async function confirmCheckout(){
     });
 
     if(!payResponse?.imp_uid) throw new Error('포트원 결제번호(imp_uid)를 받지 못했습니다.');
+    try { const pending=JSON.parse(localStorage.getItem('saju_pending_portone_payment')||'{}'); localStorage.setItem('saju_pending_portone_payment',JSON.stringify({...pending,imp_uid:payResponse.imp_uid,approved:true})); } catch(e) {}
 
     if(buyBtn) buyBtn.textContent='결제 확인 중...';
     const completeRes=await fetch('/api/payment/complete',{
@@ -1275,7 +1276,9 @@ async function confirmCheckout(){
     location.href='/guest-report.html?token='+encodeURIComponent(complete.guest_token||prep.guest_token);
   }catch(err){
     console.error('[PORTONE CHECKOUT]',err);
-    showToast('결제 실패: '+(err?.message||err));
+    const approved=pendingPortOnePayment()?.approved;
+    showToast((approved?'결제 승인 후 확인 오류입니다. 다시 결제하지 말고 이전 결제 확인을 눌러주세요. ':'결제 확인 오류: ')+(err?.message||err));
+    showPendingPaymentRecovery();
   }finally{
     if(buyBtn){buyBtn.disabled=false;buyBtn.textContent=oldText||(isGuest?'비회원으로 구매하기':'구매하기');}
   }
@@ -1730,6 +1733,7 @@ window.addEventListener('focus',()=>setTimeout(loadFamilyProfiles,150));
 
 <script src="/accessibility.js"></script>
 <script src="/checkout-coupon.js"></script>
+<script src="/payment-recovery.js"></script>
 </body></html>
 
 

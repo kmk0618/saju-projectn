@@ -63,6 +63,24 @@ function isoFromUnixSeconds(value: any) {
   return new Date(n * 1000).toISOString();
 }
 
+export function legacyTruncatedMerchantUid(value: string) {
+  return /^saju-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value) ? value.slice(0, 40) : null;
+}
+
+export async function getPortOneV1PaymentForOrder(merchantUid: string) {
+  const accessToken = await getPortOneV1AccessToken();
+  const candidates = [merchantUid, legacyTruncatedMerchantUid(merchantUid)].filter(Boolean);
+  for (const candidate of candidates) {
+    const response = await fetch(`https://api.iamport.kr/payments/find/${encodeURIComponent(candidate!)}/paid`, {
+      headers: { Authorization: accessToken, Accept: "application/json" }, cache: "no-store",
+    });
+    const data: any = await response.json().catch(() => null);
+    if (response.ok && data?.code === 0 && data?.response) return data.response;
+    if (response.status !== 404 && (!response.ok || data?.code !== -1)) throw new Error("PORTONE_V1_LOOKUP_FAILED");
+  }
+  throw new Error("PAYMENT_NOT_PAID:NOT_FOUND");
+}
+
 export async function markOrderPaidFromPortOneV1(
   sb: ReturnType<typeof getAdminSupabase>,
   order: any,
@@ -78,8 +96,14 @@ export async function markOrderPaidFromPortOneV1(
     throw new Error(`PAYMENT_AMOUNT_MISMATCH:${actual}:${expected}`);
   }
 
-  if (String(payment.merchant_uid || "") !== String(order.merchant_uid || "")) {
-    throw new Error("MERCHANT_UID_MISMATCH");
+  const expectedMerchant = String(order.merchant_uid || "");
+  const actualMerchant = String(payment.merchant_uid || "");
+  if (actualMerchant !== expectedMerchant) {
+    // Compatibility is limited to our exact historical 41-character UUID
+    // format, and only when the stored prefix identifies exactly this order.
+    if (!actualMerchant || actualMerchant !== legacyTruncatedMerchantUid(expectedMerchant)) throw new Error("MERCHANT_UID_MISMATCH");
+    const { data: matches, error: matchError } = await sb.from("orders").select("id").like("merchant_uid", `${actualMerchant}%`).limit(2);
+    if (matchError || matches?.length !== 1 || matches[0].id !== order.id) throw new Error("MERCHANT_UID_AMBIGUOUS");
   }
 
   const existingPayload = order.payment_payload && typeof order.payment_payload === "object"
@@ -90,6 +114,7 @@ export async function markOrderPaidFromPortOneV1(
     ...existingPayload,
     test_mode: false,
     charged_amount_krw: actual,
+    verified_merchant_uid: actualMerchant,
     listed_amount_krw: existingPayload.listed_amount_krw ?? expected,
     portone_v1: payment,
   };

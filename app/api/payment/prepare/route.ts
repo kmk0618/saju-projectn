@@ -57,7 +57,8 @@ export async function POST(req: Request) {
     catch (e: any) { return J({ ok: false, error: e.message }, e.message === "INVALID_PRODUCT_PRICE" ? 500 : 400); }
     const amount = pricing.amount_krw;
 
-    const merchantUid = `saju-${crypto.randomUUID()}`;
+    // PortOne V1 accepts at most 40 characters. Preserve all UUID entropy.
+    const merchantUid = `saju${crypto.randomUUID().replace(/-/g, "")}`;
     const input = body.input && typeof body.input === "object" ? { ...body.input } : {};
     const config = getReportCategoryConfig(product);
     try {

@@ -177,6 +177,7 @@ await test('coupon pricing is server-controlled, expires, and preserves ordinary
   assert.equal((await prepare(request('',1))).status,200);assert.equal(inserted.amount_krw,19000);
   assert.equal((await prepare(request(code,1))).status,200);assert.equal(inserted.amount_krw,1000);
   assert.equal(inserted.status,'pending');assert.equal(inserted.payment_payload.test_mode,false);
+  assert.match(inserted.merchant_uid,/^saju[0-9a-f]{32}$/);
   assert.equal(inserted.payment_payload.listed_amount_krw,19000);assert.equal(inserted.payment_payload.discount_krw,18000);
   assert.equal(JSON.stringify(inserted).includes(code),false);
   inserted=undefined;
@@ -192,6 +193,33 @@ await test('discounted payments still reject the wrong paid amount and retain th
   assert.equal(saved,undefined);
   await markOrderPaidFromPortOneV1(db,order,{status:'paid',amount:1000,merchant_uid:'merchant'});
   assert.equal(saved.payment_payload.listed_amount_krw,19000);assert.equal(saved.payment_payload.charged_amount_krw,1000);
+});
+await test('legacy 41-character payment recovery requires exact truncation and a unique order',async()=>{
+  const {markOrderPaidFromPortOneV1,legacyTruncatedMerchantUid}=load('lib/portone.ts');
+  const uid='saju-12345678-1234-4234-8234-123456789abc';
+  assert.equal(uid.length,41);assert.equal(legacyTruncatedMerchantUid(uid),uid.slice(0,40));
+  assert.equal(legacyTruncatedMerchantUid('unrelated-long-order-number'),null);
+  let writes=0,ambiguous=false;
+  const db=fakeDb(q=>{if(q.op==='update'){writes++;return {data:{id:'order'}};}return {data:ambiguous?[{id:'order'},{id:'other'}]:[{id:'order'}]};});
+  const originalFrom=db.from; db.from=t=>{const q=originalFrom(t);q.like=(k,v)=>q.eq(k,v);return q;};
+  const order={id:'order',merchant_uid:uid,amount_krw:1000};
+  const payment={status:'paid',merchant_uid:uid.slice(0,40),amount:1000};
+  await markOrderPaidFromPortOneV1(db,order,payment);assert.equal(writes,1);
+  ambiguous=true;
+  await assert.rejects(()=>markOrderPaidFromPortOneV1(db,order,payment),/AMBIGUOUS/);
+  await assert.rejects(()=>markOrderPaidFromPortOneV1(db,order,{...payment,merchant_uid:uid.slice(0,39)}),/MISMATCH/);
+  await assert.rejects(()=>markOrderPaidFromPortOneV1(db,order,{...payment,amount:1}),/AMOUNT_MISMATCH/);
+  assert.equal(writes,1);
+});
+await test('payment recovery verifies order ownership before querying approval',async()=>{
+  let lookups=0;
+  const db=fakeDb(()=>({data:{id:'order',merchant_uid:'merchant',amount_krw:1000,status:'pending',user_id:'owner',guest_access_token:'private-token'}}));
+  db.auth={getUser:async()=>({data:{user:{id:'owner'}}})};
+  const local=loader({'@/lib/portone':{getAdminSupabase:()=>db,getPortOneV1PaymentForOrder:async uid=>{assert.equal(uid,'merchant');lookups++;return {};},markOrderPaidFromPortOneV1:async()=>({id:'order',status:'paid',guest_access_token:'private-token'})}});
+  const request=authorized=>new Request('http://localhost',{method:'POST',headers:authorized?{authorization:'Bearer valid'}:{},body:JSON.stringify({order_id:'order',merchant_uid:'merchant'})});
+  const {POST}=local('app/api/payment/complete/route.ts');
+  assert.equal((await POST(request(false))).status,401);assert.equal(lookups,0);
+  assert.equal((await POST(request(true))).status,200);assert.equal(lookups,1);
 });
 await test('completed historical PDF is downloaded without regenerating or modifying records',async()=>{
   const db=fakeDb(q=>{

@@ -25,7 +25,9 @@
 
     let pending=null;
     try{pending=JSON.parse(localStorage.getItem('saju_pending_portone_payment')||'null')}catch(e){}
-    if(!pending||pending.merchant_uid!==merchantUid){
+    const oldUid = pending?.merchant_uid || '';
+    const legacyMatch = /^saju-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(oldUid) && oldUid.slice(0,40)===merchantUid;
+    if(!pending||(oldUid!==merchantUid&&!legacyMatch)){
       throw new Error('결제 주문 정보를 찾지 못했습니다. MY REPORT에서 결제 상태를 확인해 주세요.');
     }
 
@@ -40,7 +42,7 @@
       method:'POST',headers,
       body:JSON.stringify({
         order_id:pending.order_id,
-        merchant_uid:merchantUid,
+        merchant_uid:pending.merchant_uid,
         imp_uid:impUid,
         guest_token:pending.guest_token
       })
