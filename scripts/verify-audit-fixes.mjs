@@ -30,6 +30,17 @@ function loader(overrides={}) {
 let count=0;
 const test=async(name,fn)=>{await fn();count++;console.log('PASS '+name);};
 const load=loader();
+await test('couple final sections require complete scripts and replacement rows in the output schema',()=>{
+  const {coupleSectionSchema,buildCoupleSectionGenerationPrompt}=load('lib/couple/couple-section-generator.ts');
+  assert.equal(coupleSectionSchema(42).properties.scripts.minItems,16);
+  assert.equal(coupleSectionSchema(43).properties.table_rows.minItems,10);
+  assert.equal(coupleSectionSchema(41).properties.scripts.minItems,8);
+  assert.equal(coupleSectionSchema(1).properties.table_rows.minItems,0);
+  for(const no of [42,43]) {
+    const p=buildCoupleSectionGenerationPrompt({spec:{section_no:no,target_chars:[1000,2000]},recent:[]});
+    assert.ok(p.includes(no===42?'총 16개':'최소 10행'));
+  }
+});
 const {validateBirthInput,sameBirthInput,assertOwnedReference}=load('lib/birth-input.ts');
 const base={y:'2000',m:'2',d:'29',h:'12',mi:'30',gender:'여',calendar_type:'solar',region:'126.98',unknown_time:false};
 await test('valid leap day and explicit unknown time',()=>{

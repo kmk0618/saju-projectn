@@ -8,6 +8,14 @@ export const COUPLE_SECTION_ITEM_SCHEMA = {
   },required:["section_no","subtitle","opening_sentence","content_html","key_basis","life_scenes","a_perspective","b_perspective","repair_actions","scripts","reframe","risk","action_point","emphasis","layout_type","checklist","table_rows"]
 };
 
+export function coupleSectionSchema(sectionNo:number) {
+  return { ...COUPLE_SECTION_ITEM_SCHEMA, properties: {
+    ...COUPLE_SECTION_ITEM_SCHEMA.properties,
+    scripts: { ...COUPLE_SECTION_ITEM_SCHEMA.properties.scripts, minItems: sectionNo===42 ? 16 : sectionNo===41 ? 8 : 1 },
+    table_rows: { ...COUPLE_SECTION_ITEM_SCHEMA.properties.table_rows, minItems: sectionNo===43 ? 10 : 0 },
+  } };
+}
+
 export function buildCoupleSectionGenerationPrompt(args:{spec:ReportSectionSpec;plan:any;calcSubset:any;narrative:any;question:string;recent:any[];previousCandidate?:any;issues?:string[]}){
 let prompt=`
 당신은 유료 커플·부부 궁합 심층 리포트의 전문 해설가이자 편집자입니다.
@@ -35,6 +43,9 @@ ${JSON.stringify(coupleOwnershipPrompt(args.spec.section_no))}
 ${JSON.stringify(args.recent.slice(-16))}
 
 [완성 규칙]
+${args.spec.section_no===42 ? '- 필수: A에게 해줄 말 8개와 B에게 해줄 말 8개, 총 16개의 서로 다른 실제 대화문을 content_html에 쓰고 scripts 배열에도 모두 하나씩 담는다. 몇 개만 대표로 추출하거나 요약하지 않는다.' : ''}
+${args.spec.section_no===43 ? '- 필수: 하면 안 되는 말 → 상대가 받는 메시지 → 바꾼 표현을 최소 10행의 실제 HTML 표로 작성한다. table_rows에도 같은 10행 이상을 빠짐없이 넣는다. label에는 원래 말, value에는 상대가 받는 메시지와 바꾼 표현을 함께 쓴다. 빈 배열이나 대표 행만 반환하지 않는다.' : ''}
+${args.spec.section_no===41 ? '- 필수: 서로 다른 상황의 대화문 최소 8개를 content_html과 scripts 배열 양쪽에 모두 담는다.' : ''}
 - 고객에게는 계산 과정이 아니라 관계 해석 결과만 보여준다.
 - subtitle은 제목 아래 공감 부제. content_html에서 그대로 반복하지 않는다.
 - 결론부터 시작한 뒤 A 관점/B 관점/실제 장면/서로의 오해/복구 행동을 연결한다.

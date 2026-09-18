@@ -22,7 +22,7 @@ import { buildCoupleFacts, combineCoupleContext } from "@/lib/couple/couple-fact
 import { buildCoupleMeaningContext } from "@/lib/couple/couple-meaning-map";
 import { COUPLE_NARRATIVE_SCHEMA, buildCoupleNarrativePrompt } from "@/lib/couple/couple-narrative";
 import { COUPLE_SECTION_PLAN_SCHEMA, buildCoupleSectionPlanPrompt } from "@/lib/couple/couple-section-planner";
-import { COUPLE_SECTION_ITEM_SCHEMA, buildCoupleSectionGenerationPrompt } from "@/lib/couple/couple-section-generator";
+import { coupleSectionSchema, buildCoupleSectionGenerationPrompt } from "@/lib/couple/couple-section-generator";
 import { validateCoupleSectionDepth, auditCoupleReportDepth, auditCoupleReportUniqueness } from "@/lib/couple/couple-quality";
 
 export const runtime = "nodejs";
@@ -293,7 +293,7 @@ async function generateCoupleSection(args: {
   return openAIJson({
     system: "당신은 두 사람이 함께 읽는 유료 부부궁합 심층 리포트의 전문 해설가입니다. 한 사람 탓으로 몰지 않고 관계 상호작용, 실제 생활 장면, 복구 행동과 대화문까지 구체적으로 씁니다.",
     user: buildCoupleSectionGenerationPrompt(args),
-    schema: COUPLE_SECTION_ITEM_SCHEMA,
+    schema: coupleSectionSchema(args.spec.section_no),
     schemaName: `couple_section_${args.spec.section_no}_content`,
     maxTokens: 13000,
   });
