@@ -10,7 +10,9 @@
       83
     ],
     "public_pdf": "/samples/life/preview.pdf",
-    "raster_only": true
+    "raster_only": true,
+    "blur_mode": "selective-body-lines",
+    "visible_body_fraction": 0.625
   },
   {
     "category": "child",
@@ -23,7 +25,9 @@
       87
     ],
     "public_pdf": "/samples/child/preview.pdf",
-    "raster_only": true
+    "raster_only": true,
+    "blur_mode": "selective-body-lines",
+    "visible_body_fraction": 0.625
   },
   {
     "category": "couple",
@@ -36,7 +40,9 @@
       84
     ],
     "public_pdf": "/samples/couple/preview.pdf",
-    "raster_only": true
+    "raster_only": true,
+    "blur_mode": "selective-body-lines",
+    "visible_body_fraction": 0.625
   },
   {
     "category": "new-year",
@@ -49,6 +55,8 @@
       24
     ],
     "public_pdf": "/samples/new-year/preview.pdf",
-    "raster_only": true
+    "raster_only": true,
+    "blur_mode": "selective-body-lines",
+    "visible_body_fraction": 0.625
   }
 ]
