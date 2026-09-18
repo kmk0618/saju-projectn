@@ -76,11 +76,16 @@ async function ensurePdf(sb: any, order: any, report: any) {
     }
   }
 
-  const { data: claimed, error: claimError } = await sb.from("reports").update({
+  let claimQuery = sb.from("reports").update({
     status:"generating",
     report_json:{ ...rj, total_sections:totalSections, completed_sections:totalSections, progress:97, phase:"pdf_generating", pdf_ready:false, pdf_lease_until: Date.now() + 6 * 60 * 1000 },
     error_message:null,
-  }).eq("id", report.id).eq("report_json", JSON.stringify(rj)).select("id").maybeSingle();
+  }).eq("id", report.id);
+  // Compare only the lease scalar: the full narrative JSON exceeds URL limits.
+  claimQuery = rj.pdf_lease_until == null
+    ? claimQuery.is("report_json->>pdf_lease_until", null)
+    : claimQuery.eq("report_json->>pdf_lease_until", String(rj.pdf_lease_until));
+  const { data: claimed, error: claimError } = await claimQuery.select("id").maybeSingle();
   if (claimError) throw new Error("PDF_LOCK_FAILED");
   if (!claimed) throw new Error("PDF_IN_PROGRESS");
 
