@@ -143,6 +143,7 @@ async function openAIJson(args: { system: string; user: string; schema: any; sch
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
   let resp: Response;
+  let raw: string;
   try {
     resp = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -159,6 +160,7 @@ async function openAIJson(args: { system: string; user: string; schema: any; sch
     }),
     signal: controller.signal,
   });
+    raw = await resp.text();
   } catch (e: any) {
     if (e?.name === "AbortError") throw new Error("OPENAI_TIMEOUT");
     throw e;
@@ -166,7 +168,6 @@ async function openAIJson(args: { system: string; user: string; schema: any; sch
     clearTimeout(timeout);
   }
 
-  const raw = await resp.text();
   if (!resp.ok) throw new Error(`OPENAI_${resp.status}:${raw.slice(0, 1200)}`);
   let data: any;
   try { data = JSON.parse(raw); } catch { throw new Error("OPENAI_RESPONSE_NOT_JSON"); }

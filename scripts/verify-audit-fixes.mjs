@@ -54,6 +54,25 @@ await test('dispatch claim rejects forged, expired, replayed and competing reque
   row={...row,status:'dispatched',next_attempt_at:new Date(0).toISOString()};
   assert.equal(await claimDispatchedJob(db,'order','secret'),null);
 });
+await test('customer start persists a job without starting a recursive or browser-owned worker',async()=>{
+  let enqueued=0;
+  process.env.NEXT_PUBLIC_SUPABASE_URL='https://example.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY='test-only';
+  const db=fakeDb(q=>({data:q.table==='orders'?{id:'order',status:'paid',products:{slug:'new-year'}}:null}));
+  const local=loader({'@supabase/supabase-js':{createClient:()=>db},'@/lib/report-jobs':{enqueueReportJob:async(_sb,id)=>{assert.equal(id,'order');enqueued++;return {status:'queued',retried:false};}}});
+  const result=await local('app/api/report/generate/route.ts').POST(new Request('http://localhost/api/report/generate',{
+    method:'POST',body:JSON.stringify({token:'11111111-1111-1111-1111-111111111111',background:true})}));
+  assert.equal(result.status,202);assert.equal(enqueued,1);
+});
+await test('scheduler dispatch accepts one credential once without requiring a report bearer token',async()=>{
+  let claimed=false,scheduled=0;
+  const db=fakeDb(()=>({data:{status:'paid',guest_access_token:'11111111-1111-1111-1111-111111111111'}}));
+  const local=loader({'@supabase/supabase-js':{createClient:()=>db},'next/server':{NextResponse:{json:(v,o)=>Response.json(v,o)},after:()=>scheduled++},
+    '@/lib/report-jobs':{claimDispatchedJob:async()=>{if(claimed)return null;claimed=true;return {order_id:'order'};}}});
+  const body={order_id:'22222222-2222-2222-2222-222222222222',dispatch_id:'33333333-3333-3333-3333-333333333333'};
+  const run=()=>local('app/api/report/generate/route.ts').POST(new Request('http://localhost/api/report/generate',{method:'POST',body:JSON.stringify(body)}));
+  assert.equal((await run()).status,202);assert.equal((await run()).status,403);assert.equal(scheduled,1);
+});
 await test('couple final sections require complete scripts and replacement rows in the output schema',()=>{
   const {coupleSectionSchema,buildCoupleSectionGenerationPrompt}=load('lib/couple/couple-section-generator.ts');
   assert.equal(coupleSectionSchema(42).properties.scripts.minItems,16);
