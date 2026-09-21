@@ -1,11 +1,11 @@
-import { normalizeBirthInput, validateBirthInput, sameBirthInput, assertOwnedReference } from "@/lib/birth-input";
+import { normalizeBirthInput, validateBirthInput, assertOwnedReference } from "@/lib/birth-input";
 import { claimGeneration, releaseGeneration, validWorker } from "@/lib/generation-lock";
 import { enqueueReportJob, claimDispatchedJob, settleReportJob, type ReportJob } from "@/lib/report-jobs";
 import { reportState } from "@/lib/report-state";
-import { isDeepStrictEqual } from "node:util";
+import { ensureCalculationSnapshot } from "@/lib/calculation-snapshot";
 import { NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { calcSaju, calcLuckData } from "@/lib/saju-engine";
+import { calcLuckData } from "@/lib/saju-engine";
 import { type ReportSectionSpec } from "@/lib/report-spec";
 import { getReportCategoryConfig, type ReportCategoryConfig } from "@/lib/report-categories";
 import {
@@ -430,48 +430,7 @@ async function ensureInitialized(sb: any, order: any, input: any, config: Report
     questionId = q.id;
   }
 
-  let { data: calcRow } = await sb.from("saju_calculations")
-    .select("id,calculation_json,input_json,engine_version")
-    .eq("birth_profile_id", birthProfileId)
-    .order("calculated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (calcRow && (calcRow.engine_version !== "manse-v3-deterministic" || !sameBirthInput(calcRow.input_json, input) || !isDeepStrictEqual(calcRow.calculation_json, validatedCalculation))) calcRow = null;
-  if (!calcRow) {
-    const calculation = calcSaju(
-      input.year,
-      input.month,
-      input.day,
-      input.time_unknown ? null : input.hour,
-      input.gender,
-      input.calendar_type,
-      input.minute,
-      input.time_unknown ? null : input.longitude,
-      !input.time_unknown,
-      input.region_name,
-    );
-    const { data: c, error } = await sb.from("saju_calculations").insert({
-      user_id: order.user_id || null,
-      birth_profile_id: birthProfileId,
-      engine_version: "manse-v3-deterministic",
-      input_json: input,
-      calculation_json: calculation,
-      raw_time_candidate_json: calculation.raw_time_candidate || null,
-      correction_policy: input.time_unknown ? "none" : "longitude+equation_of_time",
-    }).select("id,calculation_json,input_json,engine_version").single();
-    if (error) {
-      // Another request may have inserted the same deterministic calculation first.
-      const { data: existing } = await sb.from("saju_calculations")
-        .select("id,calculation_json,input_json,engine_version")
-        .eq("birth_profile_id", birthProfileId)
-        .order("calculated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!existing || !sameBirthInput(existing.input_json, input) || !isDeepStrictEqual(existing.calculation_json, validatedCalculation)) throw new Error("CALC_CREATE_FAILED:" + error.message);
-      calcRow = existing;
-    } else calcRow = c;
-  }
+  const calcRow = await ensureCalculationSnapshot(sb, order.user_id || null, birthProfileId, input, validatedCalculation);
 
   await sb.from("orders").update({ birth_profile_id: birthProfileId, question_id: questionId || null }).eq("id", order.id);
 
@@ -562,35 +521,7 @@ async function ensurePartnerInitialized(sb: any, order: any, primaryProfileId: s
     partnerProfileId = created.id;
   }
 
-  let { data: calcRow } = await sb.from("saju_calculations")
-    .select("id,calculation_json,input_json,engine_version")
-    .eq("birth_profile_id", partnerProfileId)
-    .order("calculated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (calcRow && (calcRow.engine_version !== "manse-v3-deterministic" || !sameBirthInput(calcRow.input_json, partnerInput) || !isDeepStrictEqual(calcRow.calculation_json, validateBirthInput(partnerInput).calculation))) calcRow = null;
-  if (!calcRow) {
-    const calculation = calcSaju(
-      partnerInput.year, partnerInput.month, partnerInput.day,
-      partnerInput.time_unknown ? null : partnerInput.hour,
-      partnerInput.gender, partnerInput.calendar_type, partnerInput.minute,
-      partnerInput.time_unknown ? null : partnerInput.longitude,
-      !partnerInput.time_unknown,
-      partnerInput.region_name,
-    );
-    const { data: c, error } = await sb.from("saju_calculations").insert({
-      user_id: order.user_id || null,
-      birth_profile_id: partnerProfileId,
-      engine_version: "manse-v3-deterministic",
-      input_json: partnerInput,
-      calculation_json: calculation,
-      raw_time_candidate_json: calculation.raw_time_candidate || null,
-      correction_policy: partnerInput.time_unknown ? "none" : "longitude+equation_of_time",
-    }).select("id,calculation_json,input_json,engine_version").single();
-    if (error || !c) throw new Error("PARTNER_CALC_CREATE_FAILED:" + (error?.message || "NO_CALC"));
-    calcRow = c;
-  }
+  const calcRow = await ensureCalculationSnapshot(sb, order.user_id || null, partnerProfileId!, partnerInput, validateBirthInput(partnerInput).calculation);
   return { partnerProfileId, partnerInput, calcRow };
 }
 

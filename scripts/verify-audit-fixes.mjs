@@ -86,6 +86,24 @@ await test('couple final sections require complete scripts and replacement rows 
 });
 const {validateBirthInput,sameBirthInput,assertOwnedReference}=load('lib/birth-input.ts');
 const base={y:'2000',m:'2',d:'29',h:'12',mi:'30',gender:'여',calendar_type:'solar',region:'126.98',unknown_time:false};
+await test('calculation revisions preserve old rows and deduplicate concurrent identical inputs',async()=>{
+  const {ensureCalculationSnapshot,calculationRevision}=load('lib/calculation-snapshot.ts');
+  const input=validateBirthInput(base).input, calc={a:1,nested:{z:2,b:3}};
+  assert.equal(calculationRevision(input,calc),calculationRevision({...input,question:'another question'}, {nested:{b:3,z:2},a:1}));
+  assert.notEqual(calculationRevision(input,calc),calculationRevision({...input,hour:13},calc));
+  assert.notEqual(calculationRevision(input,calc),calculationRevision(input,{...calc,a:2}));
+  const old={id:'historical',birth_profile_id:'profile',engine_version:'manse-v3-deterministic',correction_policy:'longitude+equation_of_time',input_json:input,calculation_json:{a:0}};
+  const rows=[old];
+  const db=fakeDb(q=>{
+    if(q.op==='insert'){
+      if(rows.some(r=>r.birth_profile_id===q.value.birth_profile_id&&r.engine_version===q.value.engine_version&&r.correction_policy===q.value.correction_policy))return {error:{code:'23505',message:'duplicate'}};
+      const row={id:'revision',...q.value};rows.push(row);return {data:row};
+    }
+    return {data:rows.find(r=>q.filters.every(([k,v])=>r[k]===v))||null};
+  });
+  const results=await Promise.all([ensureCalculationSnapshot(db,null,'profile',input,calc),ensureCalculationSnapshot(db,null,'profile',input,calc)]);
+  assert.equal(results[0].id,results[1].id);assert.equal(rows.length,2);assert.equal(old.calculation_json.a,0);
+});
 await test('valid leap day and explicit unknown time',()=>{
   assert.equal(validateBirthInput(base).calculation.birth_solar.day,29);
   assert.equal(validateBirthInput({...base,unknown_time:true,h:'',mi:''}).calculation.saju.hour,null);
@@ -325,6 +343,17 @@ await test('retry limit does not stop an active third attempt; stalled third att
   vm.createContext(ctx);vm.runInContext(script+'\nstartAttempts=3;generationStartRequested=true;',ctx);
   await ctx.poll();assert.equal(box.innerHTML,'');
   stale=true;await ctx.poll();assert.ok(box.innerHTML.includes('생성 다시 시도'));
+});
+await test('durable queue owns PDF work and only an explicit retry resets a stopped job',async()=>{
+  const script=[...fs.readFileSync('public/guest-report.html','utf8').matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)][0][1].replace(/\npoll\(\);\s*$/,'');
+  const app={innerHTML:''},box={innerHTML:''},button={};let failed=false,requests=0;
+  const ctx={URLSearchParams,location:{search:'?token=test'},console,Date,setTimeout:()=>{},document:{hidden:false,getElementById:id=>id==='app'?app:id==='runtimeError'?box:button},fetch:async(url,options)=>{
+    if(url.startsWith('/api/guest-order'))return Response.json({ok:true,queue:{status:failed?'failed':'running'},order:{},report:{report_json:{}},state:{ready:false,completed:24,total:24,status:failed?'failed':'generating'}});
+    assert.equal(url,'/api/report/generate');assert.equal(JSON.parse(options.body).retry,true);requests++;return Response.json({ok:true});
+  }};
+  vm.createContext(ctx);vm.runInContext(script,ctx);await ctx.poll();assert.equal(requests,0);
+  failed=true;await ctx.poll();assert.ok(box.innerHTML.includes('생성 다시 시도'));button.onclick();
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(requests,1);
 });
 await test('every public JS and inline HTML script parses',()=>{
   for(const file of fs.readdirSync('public')){
