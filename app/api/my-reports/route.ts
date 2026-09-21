@@ -25,10 +25,15 @@ export async function GET(req: Request) {
     const { data: reports, error: reportError } = await sb.from("reports")
       .select("order_id,title,status,report_json,error_message,created_at").in("order_id", orders.map(o => o.id)).order("created_at", { ascending: false });
     if (reportError) throw reportError;
+    const { data: jobs, error: jobsError } = await sb.from("report_jobs").select("order_id,status").in("order_id", orders.map(o => o.id));
+    if (jobsError) throw jobsError;
     return respond({ ok: true, has_more: orders.length === 30, orders: orders.map(o => {
       const product = Array.isArray(o.products) ? o.products[0] : o.products;
       const report = reports?.find(r => r.order_id === o.id);
-      return { id: o.id, token: o.guest_access_token, name: product?.name || report?.title || "구매 리포트", created_at: o.created_at, ...reportState(report, product) };
+      const state = reportState(report, product);
+      const job = jobs?.find(j => j.order_id === o.id);
+      if (!state.ready && job) state.status = job.status === "failed" ? "failed" : "generating";
+      return { id: o.id, token: o.guest_access_token, name: product?.name || report?.title || "구매 리포트", created_at: o.created_at, ...state };
     }) });
   } catch {
     return respond({ ok: false, error: "ORDER_LOOKUP_FAILED" }, 500);
