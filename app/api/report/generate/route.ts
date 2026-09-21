@@ -1,5 +1,6 @@
 import { normalizeBirthInput, validateBirthInput, sameBirthInput, assertOwnedReference } from "@/lib/birth-input";
-import { claimGeneration, releaseGeneration, workerHeaders, validWorker } from "@/lib/generation-lock";
+import { claimGeneration, releaseGeneration, validWorker } from "@/lib/generation-lock";
+import { enqueueReportJob, claimDispatchedJob, settleReportJob, type ReportJob } from "@/lib/report-jobs";
 import { reportState } from "@/lib/report-state";
 import { isDeepStrictEqual } from "node:util";
 import { NextResponse, after } from "next/server";
@@ -30,9 +31,8 @@ export const maxDuration = 300;
 
 const PARALLEL_WORKERS = 12;
 const OPENAI_TIMEOUT_MS = 75_000;
-// 새 작업을 시작하는 시간 한도. 한 SECTION이 생성+재작성까지 최악의 경우 약 150초 걸릴 수 있어
-// Vercel 300초 제한 안에 안전하게 끝나도록 110초까지만 새 작업을 투입한다.
-const WORK_START_CUTOFF_MS = 110_000;
+// Planning + generation + rewrite may each take 75 seconds. Leave time to save state.
+const WORK_START_CUTOFF_MS = 45_000;
 const DEFAULT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-luna";
 const CURRENT_FLOW_YEAR = Number(process.env.REPORT_FLOW_YEAR || new Date().getFullYear());
 
@@ -623,23 +623,6 @@ async function loadOrderForToken(sb: any, token: string) {
   return order;
 }
 
-async function kickWorker(generateUrl: string, token: string) {
-  try {
-    const resp = await fetch(generateUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...workerHeaders(token) },
-      body: JSON.stringify({ token, internal: true }),
-      cache: "no-store",
-    });
-    if (!resp.ok) {
-      const t = await resp.text().catch(() => "");
-      console.error("REPORT_WORKER_KICK_HTTP_ERROR", resp.status, t.slice(0, 500));
-    }
-  } catch (e) {
-    console.error("REPORT_WORKER_KICK_FAILED", e);
-  }
-}
-
 async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectionSpec, content: any, rewriteCount: number, qualityIssues: string[], promptVersion: string) {
   const row = {
     report_id: reportId,
@@ -731,7 +714,8 @@ async function repairCoupleFinalAuditIfNeeded(
   const nextJson = {
     ...(baseJson || {}),
     phase:"writing",
-    progress:90,
+    completed_sections:config.outline.length-sectionNos.length,
+    progress:Math.min(95, Math.round(24 + ((config.outline.length-sectionNos.length)/config.outline.length)*70)),
     pdf_ready:false,
     background_running:true,
     background_heartbeat_at:Date.now(),
@@ -784,19 +768,17 @@ async function updateProgressNow(sb: any, reportId: string, narrative: any, conf
 
 async function runGenerationSlice(token: string, requestUrl: string) {
   const sb = admin();
-  const generateUrl = new URL("/api/report/generate", requestUrl).toString();
   const pdfUrl = new URL(`/api/report/pdf?token=${encodeURIComponent(token)}`, requestUrl).toString();
   const startedAt = Date.now();
   const failures: string[] = [];
   let acceptedCount = 0;
   let heldOrder: any = null;
   let lease: any = null;
-  let continueWork = false;
 
   try {
     const order = await loadOrderForToken(sb, token);
     lease = await claimGeneration(sb, order);
-    if (!lease) return;
+    if (!lease) return { busy:true };
     heldOrder = order;
     const { data: purchased } = await sb.from("reports").select("*").eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (reportState(purchased, order.products).ready) return;
@@ -857,6 +839,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       }).eq("id", report.id);
       let narrativeAttempt = 0;
       while (true) {
+        if (Date.now() - startedAt + OPENAI_TIMEOUT_MS > 280_000) throw new Error("NARRATIVE_SLICE_TIME_BUDGET");
         if (config.key === "child") narrative = await generateChildNarrative(primaryCtx, childMeaningContext, input.question);
         else if (config.key === "couple") narrative = await generateCoupleNarrative(primaryCtx, partnerCtx, coupleFacts, coupleMeaningContext, input.question);
         else narrative = await generateNarrative(primaryCtx, input.question, input.category, config);
@@ -911,7 +894,6 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     if (!missing.length) {
       const finalRepair = await repairCoupleFinalAuditIfNeeded(sb, report, config, narrative, currentJson);
       if (finalRepair.repaired) {
-        continueWork = true;
         return;
       }
       await updateProgressNow(sb, report.id, narrative, config, { background_last_error: null });
@@ -1052,6 +1034,8 @@ async function runGenerationSlice(token: string, requestUrl: string) {
 
       const MAX_REWRITES = (config.key === "child" || config.key === "couple") ? 4 : 1;
       while ((!validation.ok || !customerValidation.ok || !depthValidation.ok) && rewriteCount < MAX_REWRITES) {
+        const callsNeeded = rewriteCount === 2 && (config.key === "child" || config.key === "couple") ? 2 : 1;
+        if (Date.now() - startedAt + callsNeeded * OPENAI_TIMEOUT_MS > 280_000) break;
         const allIssues = [...validation.issues, ...customerValidation.issues, ...depthValidation.issues];
         if (config.key === "child") {
           // If the plan itself caused shallow output, rebuild it once before the final rewrite attempts.
@@ -1174,29 +1158,8 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       background_last_error: failures.length ? failures.join(" | ").slice(0, 1200) : null,
     });
 
-    if (state.done) {
-      const finalRepair = await repairCoupleFinalAuditIfNeeded(sb, report, config, narrative, currentJson);
-      if (finalRepair.repaired) {
-        continueWork = true;
-        return;
-      }
-      const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
-      if (!pdfResp.ok) {
-        const t = await pdfResp.text().catch(() => "");
-        throw new Error(`PDF_${pdfResp.status}:${t.slice(0, 500)}`);
-      }
-      const { data: latest } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
-      await sb.from("reports").update({
-        report_json: {
-          ...(latest?.report_json || {}),
-          background_running: false,
-          background_finished_at: Date.now(),
-          background_last_error: null,
-        },
-        error_message: null,
-      }).eq("id", report.id);
-      return;
-    }
+    // Give PDF rendering its own fresh invocation and full time budget.
+    if (state.done) return;
 
     const noProgressCount = acceptedCount ? 0 : Number(currentJson.background_no_progress_count || 0) + 1;
     const { data: latest } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
@@ -1211,11 +1174,6 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       error_message: noProgressCount >= 6 ? "연속 생성 실패로 자동 생성이 중단되었습니다. 다시 시작해 주세요." : null,
     }).eq("id", report.id);
 
-    if (noProgressCount < 6) {
-      // 다음 invocation은 즉시 202를 반환하고 자체 after()에서 다음 slice를 실행한다.
-      // 따라서 현재 invocation이 자식 작업 완료까지 기다리면서 300초를 초과하지 않는다.
-      continueWork = true;
-    }
   } catch (e: any) {
     console.error("REPORT_BACKGROUND_SLICE_ERROR", e);
     try {
@@ -1236,10 +1194,39 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     } catch (inner) {
       console.error("REPORT_BACKGROUND_ERROR_SAVE_FAILED", inner);
     }
+    throw e;
   }
   finally {
     if (heldOrder && lease) await releaseGeneration(sb, heldOrder.id, lease.id);
-    if (continueWork) await kickWorker(generateUrl, token);
+  }
+}
+
+async function runQueuedGeneration(job: ReportJob, token: string, requestUrl: string) {
+  const sb = admin();
+  let failure: string | undefined;
+  let busy = false;
+  try {
+    const result = await runGenerationSlice(token, requestUrl);
+    busy = result?.busy === true;
+  } catch (e: any) {
+    failure = e?.message || String(e);
+  }
+  const order = await loadOrderForToken(sb, token);
+  const { data: report, error } = await sb.from("reports").select("*").eq("order_id", order.id)
+    .order("created_at", { ascending:false }).limit(1).maybeSingle();
+  if (error) throw new Error("REPORT_QUEUE_RESULT_LOOKUP_FAILED"); // Expired dispatch is recovered by the clock.
+  const state = reportState(report, order.products);
+  const permanent = /LEGACY_REPORT_REVIEW_REQUIRED|FINAL_AUDIT_REPAIR_EXHAUSTED|PDF_.*CONTENT_AUDIT_FAILED/.test(failure || "")
+    || Number(report?.report_json?.background_no_progress_count) >= 6;
+  const decision = await settleReportJob(sb, job, { ready:state.ready, error:failure, permanent, busy });
+  if (report && !state.ready && !busy) {
+    const j = report.report_json || {};
+    const { error: saveError } = await sb.from("reports").update({
+      error_message: decision.status === "failed" ? "자동 복구 횟수를 초과했습니다. 기존 내용은 보존되어 있습니다. 다시 시도하거나 고객센터로 문의해 주세요." : null,
+      report_json:{ ...j, background_running:decision.status === "queued", background_heartbeat_at:Date.now(),
+        background_last_error:failure || j.background_last_error || null },
+    }).eq("id", report.id);
+    if (saveError) console.error("REPORT_QUEUE_STATUS_SAVE_FAILED", saveError.message);
   }
 }
 
@@ -1254,9 +1241,23 @@ export async function POST(req: Request) {
     const { data: report, error } = await sb.from("reports").select("*").eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (error) throw new Error("REPORT_LOOKUP_FAILED");
     const state = reportState(report, order.products);
+    if (body.dispatch_id) {
+      const dispatchId = String(body.dispatch_id);
+      if (!/^[0-9a-fA-F-]{36}$/.test(dispatchId)) return J({ ok:false, error:"INVALID_DISPATCH" }, 403);
+      const job = await claimDispatchedJob(sb, order.id, dispatchId);
+      if (!job) return J({ ok:false, error:"INVALID_DISPATCH" }, 403);
+      after(() => runQueuedGeneration(job, token, req.url));
+      return J({ ok:true, status:"dispatched" }, 202);
+    }
     if (state.ready) return J({ ok: true, status: "completed", progress: 100, completed_sections: state.completed, total_sections: state.total, pdf_ready: true });
     if (report && report.prompt_version !== getReportCategoryConfig(order.products).version) return J({ ok: false, error: "LEGACY_REPORT_REVIEW_REQUIRED", detail: "기존 리포트는 보존되어 있습니다. 이전 버전의 생성 복구는 고객센터로 문의해 주세요." }, 409);
-    if (body.background === true || body.internal === true) after(() => runGenerationSlice(token, req.url));
+    if (body.background === true || body.internal === true) {
+      const queued = await enqueueReportJob(sb, order.id, body.retry === true);
+      if (queued.status === "failed") return J({ ok:false, error:"REPORT_RETRY_REQUIRED", detail:"자동 복구가 중단되었습니다. 다시 시도하거나 고객센터로 문의해 주세요." }, 409);
+      if (queued.retried && report) {
+        await sb.from("reports").update({ error_message:null, report_json:{ ...report.report_json, background_no_progress_count:0 } }).eq("id", report.id);
+      }
+    }
     return J({ ok: true, status: "generating", completed_sections: state.completed, total_sections: state.total, pdf_ready: false }, 202);
   } catch (e: any) {
     const status = e.message === "ORDER_NOT_FOUND" ? 404 : e.message === "ORDER_NOT_PAID" ? 409 : 500;
@@ -1269,7 +1270,7 @@ export async function GET() {
   return J({
     ok: true,
     route: "report/generate",
-    mode: "aqua-multi-category-continuous-pool-background",
+    mode: "durable-database-queue-v1",
     parallel_workers: PARALLEL_WORKERS,
     supported_categories: ["life-report", "child-report", "couple-compatibility", "parent-child-compatibility", "new-year"],
     model: DEFAULT_MODEL,

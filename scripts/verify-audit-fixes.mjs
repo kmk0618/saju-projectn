@@ -30,6 +30,30 @@ function loader(overrides={}) {
 let count=0;
 const test=async(name,fn)=>{await fn();count++;console.log('PASS '+name);};
 const load=loader();
+await test('durable queue backs off, stops after six failures, and preserves completed reports',()=>{
+  const {jobDecision}=load('lib/report-jobs.ts');
+  const job={failure_count:0,dispatch_count:1};
+  const first=jobDecision(job,{error:'TIMEOUT'},0);
+  assert.equal(first.status,'queued');assert.equal(first.failure_count,1);
+  assert.equal(Date.parse(first.next_attempt_at),60000);
+  assert.equal(jobDecision({...job,failure_count:5},{error:'TIMEOUT'},0).status,'failed');
+  assert.equal(jobDecision({...job,dispatch_count:60},{},0).status,'failed');
+  assert.equal(jobDecision({...job,dispatch_count:60,failure_count:5},{ready:true},0).status,'completed');
+  assert.equal(jobDecision({...job,failure_count:4},{},0).failure_count,0);
+  assert.equal(Date.parse(jobDecision(job,{busy:true},0).next_attempt_at),420000);
+  assert.equal(jobDecision(job,{permanent:true},0).status,'failed');
+});
+await test('dispatch claim rejects forged, expired, replayed and competing requests',async()=>{
+  const {claimDispatchedJob}=load('lib/report-jobs.ts');
+  let row={order_id:'order',dispatch_id:'secret',status:'dispatched',next_attempt_at:new Date(Date.now()+60000).toISOString()};
+  const db={from(){const filters=[];let patch;return {update(v){patch=v;return this;},eq(k,v){filters.push(r=>r[k]===v);return this;},gt(k,v){filters.push(r=>r[k]>v);return this;},select(){return this;},async maybeSingle(){if(!filters.every(f=>f(row)))return {data:null};row={...row,...patch};return {data:{...row}};}};}};
+  assert.equal(await claimDispatchedJob(db,'order','forged'),null);
+  const results=await Promise.all([claimDispatchedJob(db,'order','secret'),claimDispatchedJob(db,'order','secret')]);
+  assert.equal(results.filter(Boolean).length,1);
+  assert.equal(await claimDispatchedJob(db,'order','secret'),null);
+  row={...row,status:'dispatched',next_attempt_at:new Date(0).toISOString()};
+  assert.equal(await claimDispatchedJob(db,'order','secret'),null);
+});
 await test('couple final sections require complete scripts and replacement rows in the output schema',()=>{
   const {coupleSectionSchema,buildCoupleSectionGenerationPrompt}=load('lib/couple/couple-section-generator.ts');
   assert.equal(coupleSectionSchema(42).properties.scripts.minItems,16);

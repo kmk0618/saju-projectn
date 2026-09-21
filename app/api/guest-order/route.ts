@@ -128,6 +128,9 @@ export async function GET(req: Request) {
     const input: any = payload.guest_input || {};
     const productRaw: any = order.products;
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
+    const { data: queue } = await supabase.from("report_jobs").select("status,next_attempt_at").eq("order_id", order.id).maybeSingle();
+    const state = reportState(report, product);
+    if (!state.ready && queue) state.status = queue.status === "failed" ? "failed" : "generating";
 
     return NextResponse.json({
       ok: true,
@@ -159,7 +162,8 @@ export async function GET(req: Request) {
           region_name: input.region_name ?? input.regionName ?? "",
         },
       },
-      state: reportState(report, product),
+      state,
+      queue: queue || null,
       report: url.searchParams.get("status_only") === "1" && report ? {
         status: report.status, error_message: report.error_message,
         report_json: { progress: report.report_json?.progress, phase: report.report_json?.phase,

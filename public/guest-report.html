@@ -194,7 +194,7 @@ async function ensurePdf(){
   throw error;
 }
 
-async function launchParallelGeneration(){
+async function launchParallelGeneration(retry=false){
   if(generateInFlight || generationStartRequested || stopped || retryPrompted || Date.now()<nextStartAt) return;
 
   generateInFlight=true;
@@ -206,7 +206,7 @@ async function launchParallelGeneration(){
     const r=await fetch('/api/report/generate',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({token, background:true})
+      body:JSON.stringify({token, background:true, retry})
     });
 
     const raw=await r.text();
@@ -232,7 +232,7 @@ function showRetry(){
   retryPrompted=true;
   const box=document.getElementById('runtimeError')||app;
   box.innerHTML='<div class="err">생성을 계속하지 못했습니다. 기존 내용은 보존되어 있습니다. 잠시 후 다시 시도하거나 고객센터로 문의해 주세요.<br><button id="retryGeneration">생성 다시 시도</button></div>';
-  document.getElementById('retryGeneration').onclick=()=>{startAttempts=0;pdfAttempts=0;nextStartAt=0;retryPrompted=false;generationStartRequested=false;launchParallelGeneration();setTimeout(poll,5000);};
+  document.getElementById('retryGeneration').onclick=()=>{startAttempts=0;pdfAttempts=0;nextStartAt=0;retryPrompted=false;generationStartRequested=false;launchParallelGeneration(true);setTimeout(poll,5000);};
 }
 async function poll(){
   if(stopped || retryPrompted)return;
@@ -257,6 +257,14 @@ async function poll(){
 
     if(pdfReady){
       renderDone();
+      return;
+    }
+
+    if(d.queue){
+      renderProgress(completed>=total?97:Math.max(12,Math.min(95,Number(j.progress)||12)),completed,total,j.phase||'');
+      if(d.state?.status==='failed'){showRetry();return;}
+      // The independent scheduler owns generation and PDF retries, even with this tab closed.
+      setTimeout(poll,5000);
       return;
     }
 
