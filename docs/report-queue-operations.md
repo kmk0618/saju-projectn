@@ -2,13 +2,13 @@
 
 Paid orders are enqueued by a database trigger in the same transaction as payment verification. No browser return or open tab is required. Existing purchases are not bulk regenerated. Opening an unfinished current-version purchase can enqueue it; historical editions remain protected.
 
-The independent Supabase Cron runs once per minute and dispatches at most two concurrent reports through pg_net to the fixed production host. Each dispatch has a random, single-use credential. Only the server role can read or update jobs; customer roles cannot read queue credentials or pg_net request bodies. Do not paste tokens or request bodies into logs or tickets.
+The independent Supabase Cron runs once per minute and dispatches at most two concurrent reports through pg_net to the fixed production host. Each dispatch has a random, single-use credential. Only the server role can read or update jobs; customer roles cannot read the job table. The platform-owned pg_net schema must remain outside the Data API exposed schemas; its internal request tables retain platform default SQL grants. Request bodies contain only the order ID and a seven-minute single-use dispatch credential, never a reusable report access token. Do not paste tokens or request bodies into logs or tickets.
 
 A dispatched/running job has a seven-minute lease, longer than the 300-second Vercel function and six-minute generation lock. Expired dispatches return to the queue. Failed requests back off from one to fifteen minutes; six consecutive errors/timeouts or sixty dispatches stop the job. Customers can explicitly retry a stopped job up to three times. Accepted sections are preserved. PDF rendering starts in a fresh invocation after body generation; completed PDFs are reused.
 
 ## Deployment order
 
-1. Apply durable_report_jobs and secure_report_scheduler migrations. The scheduler must still be inactive. The latter recreates only the newly provisioned pg_net extension before any live requests exist; do not rerun it after activation.
+1. Apply durable_report_jobs, secure_report_scheduler, and minimize_dispatch_credentials migrations. The scheduler must still be inactive. The latter recreates only the newly provisioned pg_net extension before any live requests exist; do not rerun it after activation.
 2. Deploy the application and verify `/api/report/generate` returns `mode: durable-database-queue-v1`.
 3. Apply activate_report_scheduler. Verify cron run status and a dispatch acknowledged by the application.
 

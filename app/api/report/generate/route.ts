@@ -1233,6 +1233,22 @@ async function runQueuedGeneration(job: ReportJob, token: string, requestUrl: st
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
+    if (body.dispatch_id !== undefined) {
+      const orderId = String(body.order_id || "");
+      const dispatchId = String(body.dispatch_id);
+      if (![orderId, dispatchId].every(v => /^[0-9a-fA-F-]{36}$/.test(v))) return J({ ok:false, error:"INVALID_DISPATCH" }, 403);
+      const sb = admin();
+      const job = await claimDispatchedJob(sb, orderId, dispatchId);
+      if (!job) return J({ ok:false, error:"INVALID_DISPATCH" }, 403);
+      const { data: dispatchOrder, error: orderError } = await sb.from("orders").select("status,guest_access_token").eq("id", orderId).maybeSingle();
+      if (orderError) throw new Error("REPORT_QUEUE_ORDER_LOOKUP_FAILED");
+      if (dispatchOrder?.status !== "paid" || !dispatchOrder.guest_access_token) {
+        await settleReportJob(sb, job, { error:"ORDER_NOT_PAID", permanent:true });
+        return J({ ok:false, error:"ORDER_NOT_PAID" }, 409);
+      }
+      after(() => runQueuedGeneration(job, dispatchOrder.guest_access_token, req.url));
+      return J({ ok:true, status:"dispatched" }, 202);
+    }
     const token = String(body?.token || "").trim();
     if (!/^[0-9a-fA-F-]{36}$/.test(token)) return J({ ok: false, error: "INVALID_TOKEN" }, 400);
     if (body.internal === true && !validWorker(req, token)) return J({ ok: false, error: "WORKER_ONLY" }, 403);
@@ -1241,14 +1257,6 @@ export async function POST(req: Request) {
     const { data: report, error } = await sb.from("reports").select("*").eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (error) throw new Error("REPORT_LOOKUP_FAILED");
     const state = reportState(report, order.products);
-    if (body.dispatch_id) {
-      const dispatchId = String(body.dispatch_id);
-      if (!/^[0-9a-fA-F-]{36}$/.test(dispatchId)) return J({ ok:false, error:"INVALID_DISPATCH" }, 403);
-      const job = await claimDispatchedJob(sb, order.id, dispatchId);
-      if (!job) return J({ ok:false, error:"INVALID_DISPATCH" }, 403);
-      after(() => runQueuedGeneration(job, token, req.url));
-      return J({ ok:true, status:"dispatched" }, 202);
-    }
     if (state.ready) return J({ ok: true, status: "completed", progress: 100, completed_sections: state.completed, total_sections: state.total, pdf_ready: true });
     if (report && report.prompt_version !== getReportCategoryConfig(order.products).version) return J({ ok: false, error: "LEGACY_REPORT_REVIEW_REQUIRED", detail: "기존 리포트는 보존되어 있습니다. 이전 버전의 생성 복구는 고객센터로 문의해 주세요." }, 409);
     if (body.background === true || body.internal === true) {
@@ -1271,6 +1279,7 @@ export async function GET() {
     ok: true,
     route: "report/generate",
     mode: "durable-database-queue-v1",
+    queue_protocol: "order-id-v1",
     parallel_workers: PARALLEL_WORKERS,
     supported_categories: ["life-report", "child-report", "couple-compatibility", "parent-child-compatibility", "new-year"],
     model: DEFAULT_MODEL,
