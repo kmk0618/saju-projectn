@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1235,6 +1235,89 @@ async function confirmCheckout(){
     const headers={'Content-Type':'application/json'};
     if(session?.access_token) headers.Authorization='Bearer '+session.access_token;
 
+    // SAJU_FREE_TEST_BYPASS_V2
+    // 지정 테스트 이메일만 실제 PG 결제를 건너뛰고 테스트 주문 생성
+    if(isGuest && guestEmail.toLowerCase()==='lovemk0618@naver.com'){
+      try{
+        if(buyBtn){
+          buyBtn.disabled=true;
+          buyBtn.textContent='0원 테스트 주문 만드는 중...';
+        }
+
+        const testRes=await fetch('/api/test-guest-order',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            guest_email:guestEmail,
+            product_slug:productSlug,
+            input:collectGuestCheckoutPayload(),
+            partner_input:couplePartner?.input||null
+          })
+        });
+
+        const testResult=await testRes.json().catch(()=>null);
+
+        if(!testRes.ok || !testResult?.ok){
+          throw new Error(
+            (testResult?.error||'테스트 주문 생성 실패')+
+            (testResult?.detail?' : '+testResult.detail:'')
+          );
+        }
+
+        try{
+          localStorage.setItem(
+            'saju_test_guest_order',
+            JSON.stringify({
+              ...testResult,
+              created_at:new Date().toISOString()
+            })
+          );
+        }catch(e){}
+
+        closeModal();
+
+        alert(
+          '비회원 무료 테스트 주문이 생성되었습니다.\n\n'+
+          '실제 결제: 0원\n'+
+          '상품: '+(testResult.product?.name||checkoutProduct.name)+'\n'+
+          (testResult.listed_amount_krw
+            ? '정상 판매가: '+Number(testResult.listed_amount_krw).toLocaleString()+'원\n'
+            : '')+
+          '주문번호: '+(testResult.merchant_uid||testResult.order_id||'생성 완료')+'\n'+
+          '상태: '+(testResult.status||'생성 완료')
+        );
+
+        const testToken=testResult.guest_token||'';
+
+        if(testToken){
+          location.href='/guest-report.html?token='+encodeURIComponent(testToken);
+          return;
+        }
+
+        if(testResult.redirect_url){
+          location.href=testResult.redirect_url;
+          return;
+        }
+
+        if(testResult.report_url){
+          location.href=testResult.report_url;
+          return;
+        }
+
+        showToast('0원 테스트 주문이 생성되었습니다. 실제 결제는 발생하지 않았습니다.');
+        return;
+
+      }catch(err){
+        console.error('[FREE TEST CHECKOUT]',err);
+        showToast('무료 테스트 주문 생성 실패: '+(err?.message||err));
+        return;
+      }finally{
+        if(buyBtn){
+          buyBtn.disabled=false;
+          buyBtn.textContent=oldText||(isGuest?'비회원으로 구매하기':'구매하기');
+        }
+      }
+    }
     const prepRes=await fetch('/api/payment/prepare',{
       method:'POST',headers,
       body:JSON.stringify({
@@ -1763,5 +1846,6 @@ window.addEventListener('focus',()=>setTimeout(loadFamilyProfiles,150));
 <script src="/checkout-coupon.js"></script>
 <script src="/payment-recovery.js"></script>
 </body></html>
+
 
 
