@@ -23,7 +23,7 @@ export type ReportSectionSpec = {
   target_chars: [number, number];
 };
 
-export const REPORT_VERSION = "life-report-aqua-50-v1";
+export const REPORT_VERSION = "life-report-aqua-50-v2-direct-narration";
 
 export const REPORT_CHAPTERS = [
   {

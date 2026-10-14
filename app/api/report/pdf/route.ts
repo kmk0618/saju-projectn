@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { buildReportHtml, htmlToPdfBuffer, PDF_RENDERER_VERSION } from "@/lib/report-pdf";
 import { auditCustomerFacingChildReport } from "@/lib/report-quality";
+import { auditCustomerFacingLifeReport, auditLifeRenderedHtml } from "@/lib/life/life-quality";
 import { auditChildReportDepth } from "@/lib/child/child-quality";
 import { auditCoupleReportDepth, auditCoupleReportUniqueness } from "@/lib/couple/couple-quality";
 import { REPORT_CATEGORY_CONFIGS } from "@/lib/report-categories";
@@ -38,8 +39,6 @@ async function loadOrderReport(sb: any, token: string) {
 
 async function ensurePdf(sb: any, order: any, report: any) {
   const rj: any = report.report_json || {};
-  if (rj.pdf_storage_path && rj.pdf_ready !== false) return { path: rj.pdf_storage_path, size: rj.pdf_size || null };
-  if (Number(rj.pdf_lease_until) > Date.now()) throw new Error("PDF_IN_PROGRESS");
   const totalSections = Number(rj.total_sections || 0);
   if (!totalSections) throw new Error("PDF_REPORT_SPEC_MISSING");
   if (rj.pdf_storage_path && rj.pdf_ready !== false && rj.pdf_renderer_version === PDF_RENDERER_VERSION) return { path:rj.pdf_storage_path, size:rj.pdf_size || null };
@@ -51,6 +50,17 @@ async function ensurePdf(sb: any, order: any, report: any) {
     .order("section_no", { ascending:true });
   if (sectionsError) throw new Error("SECTION_LOAD_FAILED:" + sectionsError.message);
   if (!sections || sections.filter((x:any) => Number(x.section_no) >= 1 && Number(x.section_no) <= totalSections).length < totalSections) throw new Error(`PDF_NOT_READY:${sections?.length || 0}/${totalSections}`);
+
+  if (String(rj.report_category || "life") === "life") {
+    const audit = auditCustomerFacingLifeReport(sections as any[], rj.narrative || null);
+    if (!audit.ok) {
+      const detail = audit.failures
+        .map((x) => `S${x.section_no}:${x.issues.join("+")}`)
+        .join("|")
+        .slice(0, 2400);
+      throw new Error(`PDF_LIFE_CONTENT_AUDIT_FAILED:${detail}`);
+    }
+  }
 
   if (String(rj.report_category || "life") === "child") {
     const audit = auditCustomerFacingChildReport(sections as any[], rj.narrative || null);
@@ -76,18 +86,11 @@ async function ensurePdf(sb: any, order: any, report: any) {
     }
   }
 
-  let claimQuery = sb.from("reports").update({
+  await sb.from("reports").update({
     status:"generating",
-    report_json:{ ...rj, total_sections:totalSections, completed_sections:totalSections, progress:97, phase:"pdf_generating", pdf_ready:false, pdf_lease_until: Date.now() + 6 * 60 * 1000 },
+    report_json:{ ...rj, total_sections:totalSections, completed_sections:totalSections, progress:97, phase:"pdf_generating", pdf_ready:false },
     error_message:null,
   }).eq("id", report.id);
-  // Compare only the lease scalar: the full narrative JSON exceeds URL limits.
-  claimQuery = rj.pdf_lease_until == null
-    ? claimQuery.is("report_json->>pdf_lease_until", null)
-    : claimQuery.eq("report_json->>pdf_lease_until", String(rj.pdf_lease_until));
-  const { data: claimed, error: claimError } = await claimQuery.select("id").maybeSingle();
-  if (claimError) throw new Error("PDF_LOCK_FAILED");
-  if (!claimed) throw new Error("PDF_IN_PROGRESS");
 
   const input = {
     ...(order.payment_payload?.guest_input || {}),
@@ -103,6 +106,12 @@ async function ensurePdf(sb: any, order: any, report: any) {
     narrative:rj.narrative || null,
     reportCategory: String(rj.report_category || "life"),
   });
+  if (String(rj.report_category || "life") === "life") {
+    const renderedAudit = auditLifeRenderedHtml(html);
+    if (!renderedAudit.ok) {
+      throw new Error(`PDF_LIFE_RENDER_AUDIT_FAILED:${renderedAudit.issues.join("+")}`);
+    }
+  }
   const pdf = await htmlToPdfBuffer(html);
   const safeVersion = String(report.prompt_version || rj.report_category || "report").replace(/[^a-zA-Z0-9_-]/g, "_");
   const path = `guest/${order.id}/${report.id}-${safeVersion}-${PDF_RENDERER_VERSION}.pdf`;
@@ -120,7 +129,6 @@ async function ensurePdf(sb: any, order: any, report: any) {
     pdf_size:pdf.length,
     pdf_generated_at:new Date().toISOString(),
     pdf_renderer_version:PDF_RENDERER_VERSION,
-    pdf_lease_until:null,
   };
   const { error: updateError } = await sb.from("reports").update({
     status:"completed",
@@ -154,15 +162,13 @@ export async function GET(req: Request) {
       "Content-Disposition":`${download ? "attachment" : "inline"}; filename*=UTF-8''${encoded}`,
       "Cache-Control":"private, no-store, max-age=0",
       "X-Content-Type-Options":"nosniff",
-      "Referrer-Policy":"no-referrer",
-      "X-Robots-Tag":"noindex, nofollow",
     }});
   } catch (e:any) {
     console.error("REPORT_PDF_ERROR", e);
     const msg = e?.message || String(e);
     let status = 500;
     if (msg === "ORDER_NOT_FOUND" || msg === "REPORT_NOT_FOUND") status = 404;
-    else if (msg === "ORDER_NOT_PAID" || msg === "PDF_IN_PROGRESS" || msg.startsWith("PDF_NOT_READY:")) status = 409;
+    else if (msg === "ORDER_NOT_PAID" || msg.startsWith("PDF_NOT_READY:")) status = 409;
     return NextResponse.json({ ok:false, error:msg.split(":")[0], detail:msg }, { status });
   }
 }

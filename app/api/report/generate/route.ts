@@ -1,11 +1,6 @@
-import { normalizeBirthInput, validateBirthInput, assertOwnedReference } from "@/lib/birth-input";
-import { claimGeneration, releaseGeneration, validWorker } from "@/lib/generation-lock";
-import { enqueueReportJob, claimDispatchedJob, settleReportJob, type ReportJob } from "@/lib/report-jobs";
-import { reportState } from "@/lib/report-state";
-import { ensureCalculationSnapshot } from "@/lib/calculation-snapshot";
 import { NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { calcLuckData } from "@/lib/saju-engine";
+import { calcSaju, calcLuckData } from "@/lib/saju-engine";
 import { type ReportSectionSpec } from "@/lib/report-spec";
 import { getReportCategoryConfig, type ReportCategoryConfig } from "@/lib/report-categories";
 import {
@@ -14,6 +9,7 @@ import {
   buildSectionPrompt,
 } from "@/lib/report-prompts";
 import { validateGeneratedSection, validateCustomerFacingChildSection, auditCustomerFacingChildReport, type QualityCandidate } from "@/lib/report-quality";
+import { validateCustomerFacingLifeSection, auditCustomerFacingLifeReport } from "@/lib/life/life-quality";
 import { buildChildMeaningContext } from "@/lib/child/child-meaning-map";
 import { CHILD_NARRATIVE_SCHEMA, buildChildNarrativePrompt } from "@/lib/child/child-narrative";
 import { CHILD_SECTION_PLAN_SCHEMA, buildChildSectionPlanPrompt } from "@/lib/child/child-section-planner";
@@ -23,7 +19,7 @@ import { buildCoupleFacts, combineCoupleContext } from "@/lib/couple/couple-fact
 import { buildCoupleMeaningContext } from "@/lib/couple/couple-meaning-map";
 import { COUPLE_NARRATIVE_SCHEMA, buildCoupleNarrativePrompt } from "@/lib/couple/couple-narrative";
 import { COUPLE_SECTION_PLAN_SCHEMA, buildCoupleSectionPlanPrompt } from "@/lib/couple/couple-section-planner";
-import { coupleSectionSchema, buildCoupleSectionGenerationPrompt } from "@/lib/couple/couple-section-generator";
+import { COUPLE_SECTION_ITEM_SCHEMA, buildCoupleSectionGenerationPrompt } from "@/lib/couple/couple-section-generator";
 import { validateCoupleSectionDepth, auditCoupleReportDepth, auditCoupleReportUniqueness } from "@/lib/couple/couple-quality";
 
 export const runtime = "nodejs";
@@ -31,8 +27,10 @@ export const maxDuration = 300;
 
 const PARALLEL_WORKERS = 12;
 const OPENAI_TIMEOUT_MS = 75_000;
-// Planning + generation + rewrite may each take 75 seconds. Leave time to save state.
-const WORK_START_CUTOFF_MS = 45_000;
+// 새 작업을 시작하는 시간 한도. 한 SECTION이 생성+재작성까지 최악의 경우 약 150초 걸릴 수 있어
+// Vercel 300초 제한 안에 안전하게 끝나도록 110초까지만 새 작업을 투입한다.
+const WORK_START_CUTOFF_MS = 110_000;
+const BACKGROUND_STALE_MS = 4 * 60 * 1000;
 const DEFAULT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-5.6-luna";
 const CURRENT_FLOW_YEAR = Number(process.env.REPORT_FLOW_YEAR || new Date().getFullYear());
 
@@ -52,7 +50,28 @@ function toNumber(v: any, fallback: number | null = null) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-const normalizeInput = normalizeBirthInput;
+function normalizeInput(raw: any) {
+  const calendar = raw.calendar_type || raw.calendar || raw.cal || "solar";
+  const genderRaw = raw.gender || raw.g || "";
+  const gender = genderRaw === "male" || genderRaw === "남" ? "남" : genderRaw === "female" || genderRaw === "여" ? "여" : "";
+  const regionName = raw.region_name || raw.regionName || raw.region_text || null;
+  const longitude = toNumber(raw.longitude ?? raw.region, null);
+  const timeUnknown = raw.unknown_time === true || raw.time_unknown === true || raw.unknown_time === "true";
+  return {
+    year: toNumber(raw.y ?? raw.year),
+    month: toNumber(raw.m ?? raw.month),
+    day: toNumber(raw.d ?? raw.day),
+    hour: timeUnknown ? null : toNumber(raw.h ?? raw.hour),
+    minute: timeUnknown ? 0 : (toNumber(raw.mi ?? raw.minute, 0) || 0),
+    calendar_type: calendar,
+    gender,
+    time_unknown: timeUnknown,
+    longitude,
+    region_name: regionName,
+    question: String(raw.question || "").trim(),
+    category: String(raw.qcat || raw.category || "").trim(),
+  };
+}
 
 function currentDaeun(calc: any) {
   const currentAge = new Date().getFullYear() - Number(calc?.birth_solar?.year || 0);
@@ -65,7 +84,7 @@ function pillarText(p: any) {
 
 function calcContext(calc: any, input: any) {
   const p = calc?.saju || {};
-  const luck = calcLuckData(calc, input.target_year || CURRENT_FLOW_YEAR);
+  const luck = calcLuckData(calc, CURRENT_FLOW_YEAR);
   return {
     identity: {
       birth_input: {
@@ -143,7 +162,6 @@ async function openAIJson(args: { system: string; user: string; schema: any; sch
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
   let resp: Response;
-  let raw: string;
   try {
     resp = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -160,7 +178,6 @@ async function openAIJson(args: { system: string; user: string; schema: any; sch
     }),
     signal: controller.signal,
   });
-    raw = await resp.text();
   } catch (e: any) {
     if (e?.name === "AbortError") throw new Error("OPENAI_TIMEOUT");
     throw e;
@@ -168,6 +185,7 @@ async function openAIJson(args: { system: string; user: string; schema: any; sch
     clearTimeout(timeout);
   }
 
+  const raw = await resp.text();
   if (!resp.ok) throw new Error(`OPENAI_${resp.status}:${raw.slice(0, 1200)}`);
   let data: any;
   try { data = JSON.parse(raw); } catch { throw new Error("OPENAI_RESPONSE_NOT_JSON"); }
@@ -294,7 +312,7 @@ async function generateCoupleSection(args: {
   return openAIJson({
     system: "당신은 두 사람이 함께 읽는 유료 부부궁합 심층 리포트의 전문 해설가입니다. 한 사람 탓으로 몰지 않고 관계 상호작용, 실제 생활 장면, 복구 행동과 대화문까지 구체적으로 씁니다.",
     user: buildCoupleSectionGenerationPrompt(args),
-    schema: coupleSectionSchema(args.spec.section_no),
+    schema: COUPLE_SECTION_ITEM_SCHEMA,
     schemaName: `couple_section_${args.spec.section_no}_content`,
     maxTokens: 13000,
   });
@@ -321,7 +339,7 @@ async function generateNarrative(calcCtx: any, question: string, category: strin
     required: ["core_thesis","life_tensions","strengths","risks","leverage_points","chapter_theses","current_question_thesis"],
   };
   return openAIJson({
-    system: "당신은 계산하지 않는 명리 리포트 편집장입니다. 제공된 사실값만 해석하고 개인화 서사를 설계합니다.",
+    system: "당신은 계산하지 않는 명리 리포트 편집장입니다. 제공된 사실값만 해석하되, 계산 자료를 읽어주는 말투가 아니라 고객에게 직접 설명하는 자연스러운 서사로 설계합니다. 데이터 출처·엔진·작성 과정을 절대 언급하지 않습니다.",
     user: buildPersonNarrativePrompt(calcCtx, question, category, config.title, config.focus),
     schema,
     schemaName: "person_narrative",
@@ -346,7 +364,7 @@ async function generateSectionBatch(args: {
     required: ["sections"],
   };
   const parsed = await openAIJson({
-    system: "당신은 대한민국 유료 개인 사주책의 전문 해설가이자 편집자입니다. 계산하지 말고 제공된 deterministic 사실만 사용합니다. AQUA 수준의 정보 밀도와 편집 흐름을 따르되 문장을 복제하지 않습니다.",
+    system: "당신은 대한민국 유료 개인 사주책의 전문 해설가이자 편집자입니다. 계산하지 말고 확정된 사실값만 사용합니다. 고객에게는 자료가 제시·제공되었다고 설명하지 말고 사실과 해석을 직접 서술합니다. AQUA 수준의 정보 밀도와 편집 흐름을 따르되 문장을 복제하지 않습니다.",
     user: buildSectionPrompt(args),
     schema,
     schemaName: "saju_report_sections",
@@ -368,7 +386,7 @@ async function rewriteSection(args: {
 }) {
   const schema = { type: "object", additionalProperties: false, properties: sectionItemSchema.properties, required: sectionItemSchema.required };
   return openAIJson({
-    system: "당신은 개인 사주 리포트 품질 편집자입니다. 사실값은 유지하고 반복과 얕은 일반론만 제거해 전면 재작성합니다.",
+    system: "당신은 개인 사주 리포트 품질 편집자입니다. 사실값은 유지하고 반복·자료 낭독형 말투·내부 지시문·제3자 호칭을 제거해 고객용 직접 서술로 전면 재작성합니다.",
     user: buildRewritePrompt({
       spec: args.spec,
       calcSubset: args.calcSubset,
@@ -385,11 +403,6 @@ async function rewriteSection(args: {
 }
 
 async function ensureInitialized(sb: any, order: any, input: any, config: ReportCategoryConfig) {
-  const validatedCalculation = validateBirthInput(input).calculation;
-  if (order.user_id) {
-    await assertOwnedReference(sb, "birth_profiles", order.birth_profile_id, order.user_id);
-    await assertOwnedReference(sb, "questions", order.question_id, order.user_id);
-  }
   let birthProfileId = order.birth_profile_id;
   let questionId = order.question_id;
 
@@ -430,7 +443,47 @@ async function ensureInitialized(sb: any, order: any, input: any, config: Report
     questionId = q.id;
   }
 
-  const calcRow = await ensureCalculationSnapshot(sb, order.user_id || null, birthProfileId, input, validatedCalculation);
+  let { data: calcRow } = await sb.from("saju_calculations")
+    .select("id,calculation_json")
+    .eq("birth_profile_id", birthProfileId)
+    .order("calculated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!calcRow) {
+    const calculation = calcSaju(
+      input.year,
+      input.month,
+      input.day,
+      input.time_unknown ? null : input.hour,
+      input.gender,
+      input.calendar_type,
+      input.minute,
+      input.time_unknown ? null : input.longitude,
+      !input.time_unknown,
+      input.region_name,
+    );
+    const { data: c, error } = await sb.from("saju_calculations").insert({
+      user_id: order.user_id || null,
+      birth_profile_id: birthProfileId,
+      engine_version: "manse-v3-deterministic",
+      input_json: input,
+      calculation_json: calculation,
+      raw_time_candidate_json: calculation.raw_time_candidate || null,
+      correction_policy: input.time_unknown ? "none" : "longitude+equation_of_time",
+    }).select("id,calculation_json").single();
+    if (error) {
+      // Another request may have inserted the same deterministic calculation first.
+      const { data: existing } = await sb.from("saju_calculations")
+        .select("id,calculation_json")
+        .eq("birth_profile_id", birthProfileId)
+        .order("calculated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!existing) throw new Error("CALC_CREATE_FAILED:" + error.message);
+      calcRow = existing;
+    } else calcRow = c;
+  }
 
   await sb.from("orders").update({ birth_profile_id: birthProfileId, question_id: questionId || null }).eq("id", order.id);
 
@@ -490,14 +543,12 @@ async function ensurePartnerInitialized(sb: any, order: any, primaryProfileId: s
     const { data: profile, error } = await q.maybeSingle();
     if (error || !profile) throw new Error("PARTNER_PROFILE_NOT_FOUND");
     if (String(profile.id) === String(primaryProfileId)) throw new Error("PARTNER_PROFILE_MUST_DIFFER");
-    partnerInput = payload.partner_input ? normalizeInput(payload.partner_input) : inputFromBirthProfile(profile);
-    validateBirthInput(partnerInput);
+    partnerInput = inputFromBirthProfile(profile);
     if (!partnerInput.year || !partnerInput.month || !partnerInput.day) throw new Error("PARTNER_BIRTH_DATE_MISSING");
     if (!partnerInput.gender) throw new Error("PARTNER_GENDER_MISSING");
   } else {
     const rawPartner = payload.partner_input || payload.guest_input?.partner_input || payload.guest_input?.partner || null;
     partnerInput = normalizeInput(rawPartner || {});
-    validateBirthInput(partnerInput);
     if (!partnerInput.year || !partnerInput.month || !partnerInput.day) throw new Error("PARTNER_BIRTH_DATE_MISSING");
     if (!partnerInput.gender) throw new Error("PARTNER_GENDER_MISSING");
     const birthDate = `${String(partnerInput.year).padStart(4,"0")}-${String(partnerInput.month).padStart(2,"0")}-${String(partnerInput.day).padStart(2,"0")}`;
@@ -521,15 +572,71 @@ async function ensurePartnerInitialized(sb: any, order: any, primaryProfileId: s
     partnerProfileId = created.id;
   }
 
-  const calcRow = await ensureCalculationSnapshot(sb, order.user_id || null, partnerProfileId!, partnerInput, validateBirthInput(partnerInput).calculation);
+  let { data: calcRow } = await sb.from("saju_calculations")
+    .select("id,calculation_json")
+    .eq("birth_profile_id", partnerProfileId)
+    .order("calculated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!calcRow) {
+    const calculation = calcSaju(
+      partnerInput.year, partnerInput.month, partnerInput.day,
+      partnerInput.time_unknown ? null : partnerInput.hour,
+      partnerInput.gender, partnerInput.calendar_type, partnerInput.minute,
+      partnerInput.time_unknown ? null : partnerInput.longitude,
+      !partnerInput.time_unknown,
+      partnerInput.region_name,
+    );
+    const { data: c, error } = await sb.from("saju_calculations").insert({
+      user_id: order.user_id || null,
+      birth_profile_id: partnerProfileId,
+      engine_version: "manse-v3-deterministic",
+      input_json: partnerInput,
+      calculation_json: calculation,
+      raw_time_candidate_json: calculation.raw_time_candidate || null,
+      correction_policy: partnerInput.time_unknown ? "none" : "longitude+equation_of_time",
+    }).select("id,calculation_json").single();
+    if (error || !c) throw new Error("PARTNER_CALC_CREATE_FAILED:" + (error?.message || "NO_CALC"));
+    calcRow = c;
+  }
   return { partnerProfileId, partnerInput, calcRow };
 }
 
 async function resetLegacyReportIfNeeded(sb: any, report: any, config: ReportCategoryConfig) {
-  // Viewing an existing purchase must never destroy its PDF or text.
-  if (reportState(report, null).ready || report.prompt_version === config.version) return report;
-  // Preserve interrupted older editions too. A migration needs a separate reviewed revision.
-  throw new Error("LEGACY_REPORT_REVIEW_REQUIRED");
+  if (report.prompt_version === config.version) return report;
+  const oldJson: any = report.report_json || {};
+  if (oldJson.pdf_storage_path) {
+    await sb.storage.from("report-pdfs").remove([oldJson.pdf_storage_path]).catch(() => null);
+  }
+  await sb.from("report_sections").delete().eq("report_id", report.id);
+  const resetJson = {
+    ...oldJson,
+    report_category: config.key,
+    report_slug: config.slug,
+    report_subtitle: config.subtitle,
+    total_sections: config.outline.length,
+    completed_sections: 0,
+    progress: 12,
+    phase: "calculation_done",
+    pdf_ready: false,
+    pdf_storage_path: null,
+    pdf_size: null,
+    pdf_generated_at: null,
+    pdf_renderer_version: null,
+    narrative: null,
+    migrated_from: report.prompt_version || "legacy",
+  };
+  const { data: updated, error } = await sb.from("reports").update({
+    status: "generating",
+    generated_at: null,
+    report_json: resetJson,
+    generation_model: DEFAULT_MODEL,
+    prompt_version: config.version,
+    error_message: null,
+  }).eq("id", report.id).select("*").single();
+  if (error) throw new Error("REPORT_VERSION_RESET_FAILED:" + error.message);
+  return updated;
 }
 
 function qualityCandidateFromRow(row: any): QualityCandidate {
@@ -553,6 +660,23 @@ async function loadOrderForToken(sb: any, token: string) {
   if (error || !order) throw new Error("ORDER_NOT_FOUND");
   if (order.status !== "paid") throw new Error("ORDER_NOT_PAID");
   return order;
+}
+
+async function kickWorker(generateUrl: string, token: string) {
+  try {
+    const resp = await fetch(generateUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-report-worker": "1" },
+      body: JSON.stringify({ token, internal: true }),
+      cache: "no-store",
+    });
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => "");
+      console.error("REPORT_WORKER_KICK_HTTP_ERROR", resp.status, t.slice(0, 500));
+    }
+  } catch (e) {
+    console.error("REPORT_WORKER_KICK_FAILED", e);
+  }
 }
 
 async function saveAcceptedSection(sb: any, reportId: string, spec: ReportSectionSpec, content: any, rewriteCount: number, qualityIssues: string[], promptVersion: string) {
@@ -646,8 +770,7 @@ async function repairCoupleFinalAuditIfNeeded(
   const nextJson = {
     ...(baseJson || {}),
     phase:"writing",
-    completed_sections:config.outline.length-sectionNos.length,
-    progress:Math.min(95, Math.round(24 + ((config.outline.length-sectionNos.length)/config.outline.length)*70)),
+    progress:90,
     pdf_ready:false,
     background_running:true,
     background_heartbeat_at:Date.now(),
@@ -693,37 +816,23 @@ async function updateProgressNow(sb: any, reportId: string, narrative: any, conf
     },
     generation_model: DEFAULT_MODEL,
     prompt_version: config.version,
-    error_message: null,
   }).eq("id", reportId);
   return { completed, done, progress };
 }
 
 async function runGenerationSlice(token: string, requestUrl: string) {
   const sb = admin();
+  const generateUrl = new URL("/api/report/generate", requestUrl).toString();
   const pdfUrl = new URL(`/api/report/pdf?token=${encodeURIComponent(token)}`, requestUrl).toString();
   const startedAt = Date.now();
   const failures: string[] = [];
   let acceptedCount = 0;
-  let heldOrder: any = null;
-  let lease: any = null;
 
   try {
     const order = await loadOrderForToken(sb, token);
-    lease = await claimGeneration(sb, order);
-    if (!lease) return { busy:true };
-    heldOrder = order;
-    const { data: purchased } = await sb.from("reports").select("*").eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (reportState(purchased, order.products).ready) return;
-    if (purchased && purchased.prompt_version !== getReportCategoryConfig(order.products).version) throw new Error("LEGACY_REPORT_REVIEW_REQUIRED");
-    let config = getReportCategoryConfig(order.products);
-    const rawInput = { ...((order.payment_payload as any)?.guest_input || {}), target_year: (order.payment_payload as any)?.guest_input?.target_year || (config.key === "new_year" ? 2027 : CURRENT_FLOW_YEAR) };
+    const config = getReportCategoryConfig(order.products);
+    const rawInput = (order.payment_payload as any)?.guest_input || {};
     const input = normalizeInput(rawInput);
-    if (config.key === "new_year") config = {
-      ...config,
-      title: `${input.target_year}년 신년 운세 리포트`,
-      subtitle: `${input.target_year}년의 전체 흐름과 12개월 변화, 실행 기준을 연결한 개인맞춤 신년 리포트`,
-      focus: `${config.focus} 이 주문의 분석 대상은 ${input.target_year}년이다. 본문의 올해는 모두 이 대상 연도를 뜻하며 생성 시점의 연도와 혼동하지 않는다.`,
-    };
     const init = await ensureInitialized(sb, order, input, config);
     let report = await resetLegacyReportIfNeeded(sb, init.report, config);
     let currentJson: any = report.report_json || {};
@@ -731,9 +840,6 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
       return;
     }
-
-    currentJson = { ...currentJson, background_running: true, background_heartbeat_at: Date.now(), background_last_error: null };
-    await sb.from("reports").update({ report_json: currentJson, error_message: null }).eq("id", report.id);
 
     const primaryCtx = calcContext(init.calcRow.calculation_json, input);
     let partnerInit: any = null;
@@ -771,7 +877,6 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       }).eq("id", report.id);
       let narrativeAttempt = 0;
       while (true) {
-        if (Date.now() - startedAt + OPENAI_TIMEOUT_MS > 280_000) throw new Error("NARRATIVE_SLICE_TIME_BUDGET");
         if (config.key === "child") narrative = await generateChildNarrative(primaryCtx, childMeaningContext, input.question);
         else if (config.key === "couple") narrative = await generateCoupleNarrative(primaryCtx, partnerCtx, coupleFacts, coupleMeaningContext, input.question);
         else narrative = await generateNarrative(primaryCtx, input.question, input.category, config);
@@ -784,6 +889,16 @@ async function runGenerationSlice(token: string, requestUrl: string) {
           if (narrativeAttempt >= 4) {
             const detail = [...narrativeAudit.failures, ...depthAudit.failures].map((x) => x.issues.join("+")).join("|");
             throw new Error(`NARRATIVE_CUSTOMER_AUDIT_FAILED:${detail}`);
+          }
+          continue;
+        }
+        if (config.key === "life") {
+          const narrativeAudit = auditCustomerFacingLifeReport([], narrative);
+          if (narrativeAudit.ok) break;
+          narrativeAttempt += 1;
+          if (narrativeAttempt >= 4) {
+            const detail = narrativeAudit.failures.map((x) => x.issues.join("+")).join("|");
+            throw new Error(`LIFE_NARRATIVE_CUSTOMER_AUDIT_FAILED:${detail}`);
           }
           continue;
         }
@@ -826,6 +941,7 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     if (!missing.length) {
       const finalRepair = await repairCoupleFinalAuditIfNeeded(sb, report, config, narrative, currentJson);
       if (finalRepair.repaired) {
+        await kickWorker(generateUrl, token);
         return;
       }
       await updateProgressNow(sb, report.id, narrative, config, { background_last_error: null });
@@ -956,7 +1072,9 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       let validation = validateGeneratedSection({ candidate, minChars: minimum, previous: previousCandidates });
       let customerValidation = config.key === "child"
         ? validateCustomerFacingChildSection(candidate)
-        : { ok: true, issues: [] as string[] };
+        : config.key === "life"
+          ? validateCustomerFacingLifeSection(candidate)
+          : { ok: true, issues: [] as string[] };
       let depthValidation = config.key === "child"
         ? validateChildSectionDepth({ spec, candidate, plan: childPlan })
         : config.key === "couple"
@@ -964,10 +1082,8 @@ async function runGenerationSlice(token: string, requestUrl: string) {
           : { ok: true, issues: [] as string[] };
       let rewriteCount = 0;
 
-      const MAX_REWRITES = (config.key === "child" || config.key === "couple") ? 4 : 1;
+      const MAX_REWRITES = (config.key === "child" || config.key === "couple" || config.key === "life") ? 4 : 1;
       while ((!validation.ok || !customerValidation.ok || !depthValidation.ok) && rewriteCount < MAX_REWRITES) {
-        const callsNeeded = rewriteCount === 2 && (config.key === "child" || config.key === "couple") ? 2 : 1;
-        if (Date.now() - startedAt + callsNeeded * OPENAI_TIMEOUT_MS > 280_000) break;
         const allIssues = [...validation.issues, ...customerValidation.issues, ...depthValidation.issues];
         if (config.key === "child") {
           // If the plan itself caused shallow output, rebuild it once before the final rewrite attempts.
@@ -1031,7 +1147,9 @@ async function runGenerationSlice(token: string, requestUrl: string) {
         validation = validateGeneratedSection({ candidate, minChars: minimum, previous: previousCandidates });
         customerValidation = config.key === "child"
           ? validateCustomerFacingChildSection(candidate)
-          : { ok: true, issues: [] as string[] };
+          : config.key === "life"
+            ? validateCustomerFacingLifeSection(candidate)
+            : { ok: true, issues: [] as string[] };
         depthValidation = config.key === "child"
           ? validateChildSectionDepth({ spec, candidate, plan: childPlan })
           : config.key === "couple"
@@ -1090,8 +1208,29 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       background_last_error: failures.length ? failures.join(" | ").slice(0, 1200) : null,
     });
 
-    // Give PDF rendering its own fresh invocation and full time budget.
-    if (state.done) return;
+    if (state.done) {
+      const finalRepair = await repairCoupleFinalAuditIfNeeded(sb, report, config, narrative, currentJson);
+      if (finalRepair.repaired) {
+        await kickWorker(generateUrl, token);
+        return;
+      }
+      const pdfResp = await fetch(pdfUrl, { cache: "no-store" });
+      if (!pdfResp.ok) {
+        const t = await pdfResp.text().catch(() => "");
+        throw new Error(`PDF_${pdfResp.status}:${t.slice(0, 500)}`);
+      }
+      const { data: latest } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
+      await sb.from("reports").update({
+        report_json: {
+          ...(latest?.report_json || {}),
+          background_running: false,
+          background_finished_at: Date.now(),
+          background_last_error: null,
+        },
+        error_message: null,
+      }).eq("id", report.id);
+      return;
+    }
 
     const noProgressCount = acceptedCount ? 0 : Number(currentJson.background_no_progress_count || 0) + 1;
     const { data: latest } = await sb.from("reports").select("report_json").eq("id", report.id).maybeSingle();
@@ -1106,6 +1245,11 @@ async function runGenerationSlice(token: string, requestUrl: string) {
       error_message: noProgressCount >= 6 ? "연속 생성 실패로 자동 생성이 중단되었습니다. 다시 시작해 주세요." : null,
     }).eq("id", report.id);
 
+    if (noProgressCount < 6) {
+      // 다음 invocation은 즉시 202를 반환하고 자체 after()에서 다음 slice를 실행한다.
+      // 따라서 현재 invocation이 자식 작업 완료까지 기다리면서 300초를 초과하지 않는다.
+      await kickWorker(generateUrl, token);
+    }
   } catch (e: any) {
     console.error("REPORT_BACKGROUND_SLICE_ERROR", e);
     try {
@@ -1126,83 +1270,101 @@ async function runGenerationSlice(token: string, requestUrl: string) {
     } catch (inner) {
       console.error("REPORT_BACKGROUND_ERROR_SAVE_FAILED", inner);
     }
-    throw e;
-  }
-  finally {
-    if (heldOrder && lease) await releaseGeneration(sb, heldOrder.id, lease.id);
-  }
-}
-
-async function runQueuedGeneration(job: ReportJob, token: string, requestUrl: string) {
-  const sb = admin();
-  let failure: string | undefined;
-  let busy = false;
-  try {
-    const result = await runGenerationSlice(token, requestUrl);
-    busy = result?.busy === true;
-  } catch (e: any) {
-    failure = e?.message || String(e);
-  }
-  const order = await loadOrderForToken(sb, token);
-  const { data: report, error } = await sb.from("reports").select("*").eq("order_id", order.id)
-    .order("created_at", { ascending:false }).limit(1).maybeSingle();
-  if (error) throw new Error("REPORT_QUEUE_RESULT_LOOKUP_FAILED"); // Expired dispatch is recovered by the clock.
-  const state = reportState(report, order.products);
-  const permanent = /LEGACY_REPORT_REVIEW_REQUIRED|FINAL_AUDIT_REPAIR_EXHAUSTED|PDF_.*CONTENT_AUDIT_FAILED/.test(failure || "")
-    || Number(report?.report_json?.background_no_progress_count) >= 6;
-  const decision = await settleReportJob(sb, job, { ready:state.ready, error:failure, permanent, busy });
-  if (report && !state.ready && !busy) {
-    const j = report.report_json || {};
-    const { error: saveError } = await sb.from("reports").update({
-      error_message: decision.status === "failed" ? "자동 복구 횟수를 초과했습니다. 기존 내용은 보존되어 있습니다. 다시 시도하거나 고객센터로 문의해 주세요." : null,
-      report_json:{ ...j, background_running:decision.status === "queued", background_heartbeat_at:Date.now(),
-        background_last_error:failure || j.background_last_error || null },
-    }).eq("id", report.id);
-    if (saveError) console.error("REPORT_QUEUE_STATUS_SAVE_FAILED", saveError.message);
   }
 }
 
 export async function POST(req: Request) {
+  const sb = admin();
   try {
     const body = await req.json().catch(() => ({}));
-    if (body.dispatch_id !== undefined) {
-      const orderId = String(body.order_id || "");
-      const dispatchId = String(body.dispatch_id);
-      if (![orderId, dispatchId].every(v => /^[0-9a-fA-F-]{36}$/.test(v))) return J({ ok:false, error:"INVALID_DISPATCH" }, 403);
-      const sb = admin();
-      const job = await claimDispatchedJob(sb, orderId, dispatchId);
-      if (!job) return J({ ok:false, error:"INVALID_DISPATCH" }, 403);
-      const { data: dispatchOrder, error: orderError } = await sb.from("orders").select("status,guest_access_token").eq("id", orderId).maybeSingle();
-      if (orderError) throw new Error("REPORT_QUEUE_ORDER_LOOKUP_FAILED");
-      if (dispatchOrder?.status !== "paid" || !dispatchOrder.guest_access_token) {
-        await settleReportJob(sb, job, { error:"ORDER_NOT_PAID", permanent:true });
-        return J({ ok:false, error:"ORDER_NOT_PAID" }, 409);
-      }
-      after(() => runQueuedGeneration(job, dispatchOrder.guest_access_token, req.url));
-      return J({ ok:true, status:"dispatched" }, 202);
-    }
     const token = String(body?.token || "").trim();
+    const internal = body?.internal === true;
+    const background = body?.background === true;
     if (!/^[0-9a-fA-F-]{36}$/.test(token)) return J({ ok: false, error: "INVALID_TOKEN" }, 400);
-    if (body.internal === true && !validWorker(req, token)) return J({ ok: false, error: "WORKER_ONLY" }, 403);
-    const sb = admin();
-    const order = await loadOrderForToken(sb, token);
-    const { data: report, error } = await sb.from("reports").select("*").eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (error) throw new Error("REPORT_LOOKUP_FAILED");
-    const state = reportState(report, order.products);
-    if (state.ready) return J({ ok: true, status: "completed", progress: 100, completed_sections: state.completed, total_sections: state.total, pdf_ready: true });
-    if (report && report.prompt_version !== getReportCategoryConfig(order.products).version) return J({ ok: false, error: "LEGACY_REPORT_REVIEW_REQUIRED", detail: "기존 리포트는 보존되어 있습니다. 이전 버전의 생성 복구는 고객센터로 문의해 주세요." }, 409);
-    if (body.background === true || body.internal === true) {
-      const queued = await enqueueReportJob(sb, order.id, body.retry === true);
-      if (queued.status === "failed") return J({ ok:false, error:"REPORT_RETRY_REQUIRED", detail:"자동 복구가 중단되었습니다. 다시 시도하거나 고객센터로 문의해 주세요." }, 409);
-      if (queued.retried && report) {
-        await sb.from("reports").update({ error_message:null, report_json:{ ...report.report_json, background_no_progress_count:0 } }).eq("id", report.id);
-      }
+
+    if (internal) {
+      if (req.headers.get("x-report-worker") !== "1") return J({ ok: false, error: "WORKER_ONLY" }, 403);
+      // 중요: 내부 체인 호출은 오래 일하지 않고 즉시 202를 반환한다.
+      // 실제 12병렬 작업은 이 invocation의 after()에서 실행되므로 부모 self-fetch가 자식 완료를 기다리지 않는다.
+      after(async () => {
+        await runGenerationSlice(token, req.url);
+      });
+      return J({ ok: true, status: "worker_accepted" }, 202);
     }
-    return J({ ok: true, status: "generating", completed_sections: state.completed, total_sections: state.total, pdf_ready: false }, 202);
+
+    const order = await loadOrderForToken(sb, token);
+    const config = getReportCategoryConfig(order.products);
+    const rawInput = (order.payment_payload as any)?.guest_input || {};
+    const input = normalizeInput(rawInput);
+    const init = await ensureInitialized(sb, order, input, config);
+    const report = await resetLegacyReportIfNeeded(sb, init.report, config);
+    const currentJson: any = report.report_json || {};
+
+    if (report.status === "completed" && currentJson.pdf_storage_path && currentJson.pdf_ready !== false) {
+      return J({
+        ok: true,
+        status: "completed",
+        progress: 100,
+        completed_sections: config.outline.length,
+        total_sections: config.outline.length,
+        report_id: report.id,
+        pdf_ready: true,
+      });
+    }
+
+    const totalSections = config.outline.length;
+    const completed = await sectionCount(sb, report.id, totalSections);
+    const progress = Math.min(95, Math.max(Number(currentJson.progress || 12), Math.round(24 + (completed / totalSections) * 70)));
+
+    if (background) {
+      const heartbeatAt = Number(currentJson.background_heartbeat_at || currentJson.background_started_at || 0);
+      const stillRunning = currentJson.background_running === true && (Date.now() - heartbeatAt) < BACKGROUND_STALE_MS;
+
+      if (!stillRunning) {
+        const nextJson = {
+          ...currentJson,
+          total_sections: config.outline.length,
+          completed_sections: completed,
+          progress,
+          background_running: true,
+          background_started_at: Date.now(),
+          background_heartbeat_at: Date.now(),
+          background_last_error: null,
+          background_no_progress_count: 0,
+        };
+        await sb.from("reports").update({ report_json: nextJson, error_message: null }).eq("id", report.id);
+        const generateUrl = new URL("/api/report/generate", req.url).toString();
+        after(async () => {
+          await kickWorker(generateUrl, token);
+        });
+      }
+
+      return J({
+        ok: true,
+        status: stillRunning ? "background_running" : "background_started",
+        progress,
+        completed_sections: completed,
+        total_sections: config.outline.length,
+        report_id: report.id,
+        pdf_ready: currentJson.pdf_ready === true,
+      }, 202);
+    }
+
+    // 상태 조회 성격으로 POST가 들어와도 생성 자체는 브라우저가 담당하지 않는다.
+    return J({
+      ok: true,
+      status: currentJson.pdf_ready === true ? "completed" : "generating",
+      progress,
+      completed_sections: completed,
+      total_sections: config.outline.length,
+      report_id: report.id,
+      pdf_ready: currentJson.pdf_ready === true,
+      phase: currentJson.phase || "writing",
+    });
   } catch (e: any) {
-    const status = e.message === "ORDER_NOT_FOUND" ? 404 : e.message === "ORDER_NOT_PAID" ? 409 : 500;
-    console.error("REPORT_GENERATE_ERROR", e.message);
-    return J({ ok: false, error: "REPORT_GENERATION_FAILED", detail: e.message }, status);
+    console.error("REPORT_GENERATE_ERROR", e);
+    const code = e?.message === "ORDER_NOT_FOUND" ? 404 : e?.message === "ORDER_NOT_PAID" ? 409 : 500;
+    return J({ ok: false, error: "REPORT_GENERATION_FAILED", detail: e?.message || String(e) }, code);
   }
 }
 
@@ -1210,8 +1372,7 @@ export async function GET() {
   return J({
     ok: true,
     route: "report/generate",
-    mode: "durable-database-queue-v1",
-    queue_protocol: "order-id-v1",
+    mode: "aqua-multi-category-continuous-pool-background",
     parallel_workers: PARALLEL_WORKERS,
     supported_categories: ["life-report", "child-report", "couple-compatibility", "parent-child-compatibility", "new-year"],
     model: DEFAULT_MODEL,
