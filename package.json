@@ -9,7 +9,8 @@
     "lint": "next lint",
     "check:child": "node scripts/verify-child-midlayer.mjs",
     "check:couple": "node scripts/verify-couple-midlayer.mjs",
-    "check:life": "node scripts/verify-life-customer-language.mjs"
+    "check:life": "node scripts/verify-life-customer-language.mjs",
+    "check": "npm run check:life && npm run check:child && npm run check:couple"
   },
   "dependencies": {
     "@sparticuz/chromium": "^152.0.0",
