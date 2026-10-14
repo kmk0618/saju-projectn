@@ -159,6 +159,31 @@ main{max-width:1120px;margin:auto;padding:34px 20px 90px}.hero{display:grid;grid
 h1,.product h3,.product .meta{word-break:keep-all;overflow-wrap:break-word}
 .report{color:inherit;text-decoration:none}.modal{overflow:auto;max-height:90vh}
 @media(max-width:560px){.heroCopy{padding:20px;min-height:0}.heroCopy .lead{font-size:13px}.heroCopy .points{display:none}.products{grid-template-columns:1fr}.product{min-height:0}.product .meta{gap:12px}h1{font-size:29px}.previewModal{overflow:auto}.previewSide{padding:16px}}
+
+.directViewBtn{
+  width:100%;
+  margin-top:8px;
+  border:1px solid #1f1f1b;
+  background:#1f1f1b;
+  color:#fff;
+  border-radius:11px;
+  padding:9px 10px;
+  font-family:inherit;
+  font-size:10.5px;
+  font-weight:950;
+  line-height:1.2;
+  cursor:pointer;
+  position:relative;
+  z-index:2;
+  transition:transform .15s ease,background .15s ease,box-shadow .15s ease;
+}
+.directViewBtn:hover{
+  background:#000;
+  transform:translateY(-1px);
+  box-shadow:0 6px 16px rgba(0,0,0,.12);
+}
+.directViewBtn:active{transform:translateY(0)}
+
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.iamport.kr/v1/iamport.js"></script>
   <link rel="icon" type="image/png" href="/favicon.png">
@@ -300,7 +325,8 @@ h1,.product h3,.product .meta{word-break:keep-all;overflow-wrap:break-word}
   <h3 style="margin-top:9px">종합 인생 리포트</h3>
   <p>성향, 관계, 돈, 일, 대운, 세운과 실행 전략까지 한 번에.</p><a class="sampleLink" href="/sample-life.html" onclick="event.stopPropagation()">샘플 리포트 보기</a>
   <div class="launchNotice">오픈 기념 한정 특가</div>
-  <div class="meta"><span class="active">메인 상품</span><span class="salePriceWrap"><span class="oldPrice">59,000원</span><span class="salePrice">19,000원</span></span></div>
+    <button class="directViewBtn" type="button" onclick="event.stopPropagation();this.closest('.product').click()">사주 바로 보기</button>
+<div class="meta"><span class="active">메인 상품</span><span class="salePriceWrap"><span class="oldPrice">59,000원</span><span class="salePrice">19,000원</span></span></div>
 </div>
 
 <div class="product" onclick="openProduct('자녀 사주 리포트','19,000원')">
@@ -309,7 +335,8 @@ h1,.product h3,.product .meta{word-break:keep-all;overflow-wrap:break-word}
   <h3 style="margin-top:9px">자녀 사주</h3>
   <p>기질, 공부, 감정, 친구, 양육 방식과 진로 씨앗.</p>
   <a class="sampleLink" href="/sample-child.html" target="_top" onclick="event.stopPropagation()">샘플 리포트 보기</a>
-  <div class="meta"><span class="active">가족 확장</span><span class="salePriceWrap"><span class="oldPrice">59,000원</span><span class="salePrice">19,000원</span></span></div>
+    <button class="directViewBtn" type="button" onclick="event.stopPropagation();this.closest('.product').click()">자녀 사주 바로 보기</button>
+<div class="meta"><span class="active">가족 확장</span><span class="salePriceWrap"><span class="oldPrice">59,000원</span><span class="salePrice">19,000원</span></span></div>
 </div>
 
 <div class="product" id="couple-product" onclick="openProduct('커플·부부 궁합','29,000원')">
@@ -318,7 +345,8 @@ h1,.product h3,.product .meta{word-break:keep-all;overflow-wrap:break-word}
   <h3 style="margin-top:9px">커플·부부 궁합</h3>
   <p>두 사람의 구조를 함께 보고 강점과 충돌 패턴을 분석.</p>
   <a class="sampleLink" href="/sample-compatibility.html" target="_top" onclick="event.stopPropagation()">샘플 리포트 보기</a>
-  <div class="meta"><span class="active">2인 분석</span><span class="salePriceWrap"><span class="oldPrice">79,000원</span><span class="salePrice">29,000원</span></span></div>
+    <button class="directViewBtn" type="button" onclick="event.stopPropagation();this.closest('.product').click()">궁합 바로 보기</button>
+<div class="meta"><span class="active">2인 분석</span><span class="salePriceWrap"><span class="oldPrice">79,000원</span><span class="salePrice">29,000원</span></span></div>
 </div>
 
 <div class="product" onclick="openProduct('신년 리포트','9,900원')">
